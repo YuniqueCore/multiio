@@ -3,44 +3,15 @@
 //! This module provides:
 //! - `FormatKind`: Enum representing different data formats
 //! - `FormatError`: Errors that can occur during format operations
-//! - `Format`: Trait for synchronous format implementations
-//! - `FormatRegistry`: Registry for managing format implementations
+//! - `FormatRegistry`: Registry managing formats by kind
 
 use std::io::{Read, Write};
 
 use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 
-// Format implementations
-#[cfg(feature = "csv")]
-mod csv_format;
-#[cfg(feature = "json")]
-mod json;
-#[cfg(feature = "markdown")]
-mod markdown;
-#[cfg(feature = "plaintext")]
-mod plaintext;
-#[cfg(feature = "xml")]
-mod xml;
-#[cfg(feature = "yaml")]
-mod yaml;
-
-// Re-exports
-#[cfg(feature = "csv")]
-pub use csv_format::CsvFormat;
-#[cfg(feature = "json")]
-pub use json::JsonFormat;
-#[cfg(feature = "markdown")]
-pub use markdown::MarkdownFormat;
-#[cfg(feature = "plaintext")]
-pub use plaintext::PlaintextFormat;
-#[cfg(feature = "xml")]
-pub use xml::XmlFormat;
-#[cfg(feature = "yaml")]
-pub use yaml::YamlFormat;
-
 /// Represents different data format types.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum FormatKind {
     /// Plain text format
     Plaintext,
@@ -54,8 +25,6 @@ pub enum FormatKind {
     Csv,
     /// Markdown format
     Markdown,
-    /// Custom format with a static name
-    Custom(&'static str),
 }
 
 impl std::fmt::Display for FormatKind {
@@ -67,7 +36,6 @@ impl std::fmt::Display for FormatKind {
             FormatKind::Xml => write!(f, "xml"),
             FormatKind::Csv => write!(f, "csv"),
             FormatKind::Markdown => write!(f, "markdown"),
-            FormatKind::Custom(name) => write!(f, "{}", name),
         }
     }
 }
@@ -85,6 +53,53 @@ impl FormatKind {
             _ => None,
         }
     }
+
+    /// Get file extensions for this format.
+    pub fn extensions(&self) -> &'static [&'static str] {
+        match self {
+            FormatKind::Plaintext => &["txt", "text"],
+            FormatKind::Json => &["json"],
+            FormatKind::Yaml => &["yaml", "yml"],
+            FormatKind::Xml => &["xml"],
+            FormatKind::Csv => &["csv"],
+            FormatKind::Markdown => &["md", "markdown"],
+        }
+    }
+
+    /// Check if this format is available (feature enabled).
+    pub fn is_available(&self) -> bool {
+        match self {
+            #[cfg(feature = "json")]
+            FormatKind::Json => true,
+            #[cfg(not(feature = "json"))]
+            FormatKind::Json => false,
+
+            #[cfg(feature = "yaml")]
+            FormatKind::Yaml => true,
+            #[cfg(not(feature = "yaml"))]
+            FormatKind::Yaml => false,
+
+            #[cfg(feature = "csv")]
+            FormatKind::Csv => true,
+            #[cfg(not(feature = "csv"))]
+            FormatKind::Csv => false,
+
+            #[cfg(feature = "xml")]
+            FormatKind::Xml => true,
+            #[cfg(not(feature = "xml"))]
+            FormatKind::Xml => false,
+
+            #[cfg(feature = "markdown")]
+            FormatKind::Markdown => true,
+            #[cfg(not(feature = "markdown"))]
+            FormatKind::Markdown => false,
+
+            #[cfg(feature = "plaintext")]
+            FormatKind::Plaintext => true,
+            #[cfg(not(feature = "plaintext"))]
+            FormatKind::Plaintext => false,
+        }
+    }
 }
 
 /// Errors that can occur during format operations.
@@ -97,6 +112,10 @@ pub enum FormatError {
     /// No format matched the input
     #[error("No format matched the input")]
     NoFormatMatched,
+
+    /// Format feature not enabled
+    #[error("Format '{0}' is not enabled. Enable the corresponding feature.")]
+    NotEnabled(FormatKind),
 
     /// I/O error during format operation
     #[error("I/O error: {0}")]
@@ -111,30 +130,281 @@ pub enum FormatError {
     Other(Box<dyn std::error::Error + Send + Sync>),
 }
 
-/// Trait for synchronous format implementations.
-///
-/// Implementors provide serialization and deserialization capabilities
-/// for a specific data format.
-pub trait Format: Send + Sync + 'static {
-    /// Returns the kind of this format.
-    fn kind(&self) -> FormatKind;
+/// Deserialize from bytes using the specified format.
+pub fn deserialize<T: DeserializeOwned>(kind: FormatKind, bytes: &[u8]) -> Result<T, FormatError> {
+    match kind {
+        #[cfg(feature = "json")]
+        FormatKind::Json => {
+            serde_json::from_slice(bytes).map_err(|e| FormatError::Serde(Box::new(e)))
+        }
 
-    /// Returns the file extensions associated with this format.
-    ///
-    /// For example, `["json"]` for JSON, `["yml", "yaml"]` for YAML.
-    fn extensions(&self) -> &'static [&'static str];
+        #[cfg(feature = "yaml")]
+        FormatKind::Yaml => {
+            serde_yaml::from_slice(bytes).map_err(|e| FormatError::Serde(Box::new(e)))
+        }
 
-    /// Deserialize a value from a reader.
-    fn deserialize<T: DeserializeOwned>(&self, reader: &mut dyn Read) -> Result<T, FormatError>;
+        #[cfg(feature = "csv")]
+        FormatKind::Csv => deserialize_csv(bytes),
 
-    /// Serialize a value to a writer.
-    fn serialize<T: Serialize>(&self, value: &T, writer: &mut dyn Write)
-    -> Result<(), FormatError>;
+        #[cfg(feature = "xml")]
+        FormatKind::Xml => {
+            let s = String::from_utf8_lossy(bytes);
+            quick_xml::de::from_str(&s).map_err(|e| FormatError::Serde(Box::new(e)))
+        }
+
+        #[cfg(feature = "markdown")]
+        FormatKind::Markdown => deserialize_markdown(bytes),
+
+        #[cfg(feature = "plaintext")]
+        FormatKind::Plaintext => deserialize_plaintext(bytes),
+
+        #[allow(unreachable_patterns)]
+        _ => Err(FormatError::NotEnabled(kind)),
+    }
 }
 
-/// Registry for managing format implementations.
+/// Serialize to bytes using the specified format.
+pub fn serialize<T: Serialize>(kind: FormatKind, value: &T) -> Result<Vec<u8>, FormatError> {
+    match kind {
+        #[cfg(feature = "json")]
+        FormatKind::Json => {
+            serde_json::to_vec_pretty(value).map_err(|e| FormatError::Serde(Box::new(e)))
+        }
+
+        #[cfg(feature = "yaml")]
+        FormatKind::Yaml => serde_yaml::to_string(value)
+            .map(|s| s.into_bytes())
+            .map_err(|e| FormatError::Serde(Box::new(e))),
+
+        #[cfg(feature = "csv")]
+        FormatKind::Csv => serialize_csv(value),
+
+        #[cfg(feature = "xml")]
+        FormatKind::Xml => quick_xml::se::to_string(value)
+            .map(|s| s.into_bytes())
+            .map_err(|e| FormatError::Serde(Box::new(e))),
+
+        #[cfg(feature = "markdown")]
+        FormatKind::Markdown => serialize_markdown(value),
+
+        #[cfg(feature = "plaintext")]
+        FormatKind::Plaintext => serialize_plaintext(value),
+
+        #[allow(unreachable_patterns)]
+        _ => Err(FormatError::NotEnabled(kind)),
+    }
+}
+
+/// Deserialize from a reader using the specified format.
+pub fn deserialize_from_reader<T: DeserializeOwned>(
+    kind: FormatKind,
+    reader: &mut dyn Read,
+) -> Result<T, FormatError> {
+    let mut bytes = Vec::new();
+    reader.read_to_end(&mut bytes)?;
+    deserialize(kind, &bytes)
+}
+
+/// Serialize to a writer using the specified format.
+pub fn serialize_to_writer<T: Serialize>(
+    kind: FormatKind,
+    value: &T,
+    writer: &mut dyn Write,
+) -> Result<(), FormatError> {
+    let bytes = serialize(kind, value)?;
+    writer.write_all(&bytes)?;
+    Ok(())
+}
+
+// === CSV implementation ===
+#[cfg(feature = "csv")]
+fn deserialize_csv<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, FormatError> {
+    let mut rdr = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(bytes);
+
+    let records: Vec<csv::StringRecord> = rdr
+        .records()
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| FormatError::Serde(Box::new(e)))?;
+
+    let headers = rdr.headers().map_err(|e| FormatError::Serde(Box::new(e)))?;
+    let headers: Vec<&str> = headers.iter().collect();
+
+    let json_records: Vec<serde_json::Value> = records
+        .iter()
+        .map(|record| {
+            let mut obj = serde_json::Map::new();
+            for (i, field) in record.iter().enumerate() {
+                if let Some(header) = headers.get(i) {
+                    obj.insert(
+                        (*header).to_string(),
+                        serde_json::Value::String(field.to_string()),
+                    );
+                }
+            }
+            serde_json::Value::Object(obj)
+        })
+        .collect();
+
+    let json_value = serde_json::Value::Array(json_records);
+    serde_json::from_value(json_value).map_err(|e| FormatError::Serde(Box::new(e)))
+}
+
+#[cfg(feature = "csv")]
+fn serialize_csv<T: Serialize>(value: &T) -> Result<Vec<u8>, FormatError> {
+    let json_value = serde_json::to_value(value).map_err(|e| FormatError::Serde(Box::new(e)))?;
+
+    let mut wtr = csv::Writer::from_writer(Vec::new());
+
+    match json_value {
+        serde_json::Value::Array(arr) => {
+            if let Some(first) = arr.first() {
+                if let serde_json::Value::Object(obj) = first {
+                    let headers: Vec<&str> = obj.keys().map(|s| s.as_str()).collect();
+                    wtr.write_record(&headers)
+                        .map_err(|e| FormatError::Serde(Box::new(e)))?;
+                }
+            }
+
+            for item in arr {
+                if let serde_json::Value::Object(obj) = item {
+                    let record: Vec<String> = obj
+                        .values()
+                        .map(|v| match v {
+                            serde_json::Value::String(s) => s.clone(),
+                            _ => v.to_string(),
+                        })
+                        .collect();
+                    wtr.write_record(&record)
+                        .map_err(|e| FormatError::Serde(Box::new(e)))?;
+                }
+            }
+        }
+        serde_json::Value::Object(obj) => {
+            let headers: Vec<&str> = obj.keys().map(|s| s.as_str()).collect();
+            wtr.write_record(&headers)
+                .map_err(|e| FormatError::Serde(Box::new(e)))?;
+
+            let record: Vec<String> = obj
+                .values()
+                .map(|v| match v {
+                    serde_json::Value::String(s) => s.clone(),
+                    _ => v.to_string(),
+                })
+                .collect();
+            wtr.write_record(&record)
+                .map_err(|e| FormatError::Serde(Box::new(e)))?;
+        }
+        _ => {
+            return Err(FormatError::Other(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "CSV format requires an array or object",
+            ))));
+        }
+    }
+
+    wtr.into_inner()
+        .map_err(|e| FormatError::Other(Box::new(e)))
+}
+
+// === Plaintext implementation ===
+#[cfg(feature = "plaintext")]
+fn deserialize_plaintext<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, FormatError> {
+    let s = String::from_utf8_lossy(bytes);
+
+    // Try JSON first if available
+    #[cfg(feature = "json")]
+    if let Ok(v) = serde_json::from_str(&s) {
+        return Ok(v);
+    }
+
+    // Fall back to string deserializer
+    let deserializer =
+        serde::de::value::StringDeserializer::<serde::de::value::Error>::new(s.into_owned());
+    T::deserialize(deserializer).map_err(|e| FormatError::Serde(Box::new(e)))
+}
+
+#[cfg(feature = "plaintext")]
+fn serialize_plaintext<T: Serialize>(value: &T) -> Result<Vec<u8>, FormatError> {
+    #[cfg(feature = "json")]
+    {
+        serde_json::to_vec_pretty(value).map_err(|e| FormatError::Serde(Box::new(e)))
+    }
+    #[cfg(not(feature = "json"))]
+    {
+        // Use debug format as fallback
+        let _ = value; // suppress unused warning
+        Err(FormatError::Other(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Plaintext serialization requires JSON feature",
+        ))))
+    }
+}
+
+// === Markdown implementation ===
+#[cfg(feature = "markdown")]
+fn extract_code_block(content: &str, lang: &str) -> Option<String> {
+    let fence_start = format!("```{}", lang);
+    let fence_end = "```";
+
+    let start_idx = content.find(&fence_start)?;
+    let content_start = start_idx + fence_start.len();
+    let remaining = &content[content_start..];
+
+    let content_start = if remaining.starts_with('\n') {
+        content_start + 1
+    } else {
+        content_start
+    };
+
+    let remaining = &content[content_start..];
+    let end_idx = remaining.find(fence_end)?;
+
+    Some(remaining[..end_idx].trim_end().to_string())
+}
+
+#[cfg(feature = "markdown")]
+fn deserialize_markdown<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, FormatError> {
+    let content = String::from_utf8_lossy(bytes);
+
+    #[cfg(feature = "json")]
+    if let Some(json_content) = extract_code_block(&content, "json") {
+        return serde_json::from_str(&json_content).map_err(|e| FormatError::Serde(Box::new(e)));
+    }
+
+    #[cfg(feature = "yaml")]
+    if let Some(yaml_content) = extract_code_block(&content, "yaml") {
+        return serde_yaml::from_str(&yaml_content).map_err(|e| FormatError::Serde(Box::new(e)));
+    }
+
+    let deserializer =
+        serde::de::value::StringDeserializer::<serde::de::value::Error>::new(content.into_owned());
+    T::deserialize(deserializer).map_err(|e| FormatError::Serde(Box::new(e)))
+}
+
+#[cfg(feature = "markdown")]
+fn serialize_markdown<T: Serialize>(value: &T) -> Result<Vec<u8>, FormatError> {
+    #[cfg(feature = "json")]
+    {
+        let json_str =
+            serde_json::to_string_pretty(value).map_err(|e| FormatError::Serde(Box::new(e)))?;
+        Ok(format!("```json\n{}\n```", json_str).into_bytes())
+    }
+    #[cfg(not(feature = "json"))]
+    {
+        let _ = value;
+        Err(FormatError::Other(Box::new(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Markdown serialization requires JSON feature",
+        ))))
+    }
+}
+
+/// Registry for managing available formats.
+#[derive(Debug, Clone)]
 pub struct FormatRegistry {
-    formats: Vec<Box<dyn Format>>,
+    formats: Vec<FormatKind>,
 }
 
 impl Default for FormatRegistry {
@@ -151,64 +421,84 @@ impl FormatRegistry {
         }
     }
 
-    /// Register a format implementation.
-    pub fn register(&mut self, format: Box<dyn Format>) {
-        self.formats.push(format);
+    /// Register a format.
+    pub fn register(&mut self, kind: FormatKind) {
+        if !self.formats.contains(&kind) {
+            self.formats.push(kind);
+        }
     }
 
-    /// Register a format implementation (builder pattern).
-    pub fn with_format(mut self, format: Box<dyn Format>) -> Self {
-        self.register(format);
+    /// Register a format (builder pattern).
+    pub fn with_format(mut self, kind: FormatKind) -> Self {
+        self.register(kind);
         self
     }
 
-    /// Get a format by its kind.
-    pub fn format_for_kind(&self, kind: &FormatKind) -> Option<&dyn Format> {
-        self.formats
-            .iter()
-            .find(|f| &f.kind() == kind)
-            .map(|b| b.as_ref())
+    /// Check if a format is registered.
+    pub fn has_format(&self, kind: &FormatKind) -> bool {
+        self.formats.contains(kind)
     }
 
-    /// Get the format kind for a file extension.
+    /// Get format kind for a file extension.
     pub fn kind_for_extension(&self, ext: &str) -> Option<FormatKind> {
         let ext_lower = ext.to_ascii_lowercase();
-        for f in &self.formats {
-            if f.extensions()
+        for kind in &self.formats {
+            if kind
+                .extensions()
                 .iter()
                 .any(|e| e.eq_ignore_ascii_case(&ext_lower))
             {
-                return Some(f.kind());
+                return Some(*kind);
             }
         }
         None
     }
 
     /// Resolve a format based on explicit kind or candidates.
-    ///
-    /// If `explicit` is `Some`, returns that format.
-    /// Otherwise, tries each candidate in order.
     pub fn resolve(
         &self,
         explicit: Option<&FormatKind>,
         candidates: &[FormatKind],
-    ) -> Result<&dyn Format, FormatError> {
+    ) -> Result<FormatKind, FormatError> {
         if let Some(k) = explicit {
-            return self
-                .format_for_kind(k)
-                .ok_or_else(|| FormatError::UnknownFormat(k.clone()));
+            if self.has_format(k) && k.is_available() {
+                return Ok(*k);
+            }
+            return Err(FormatError::UnknownFormat(*k));
         }
         for k in candidates {
-            if let Some(fmt) = self.format_for_kind(k) {
-                return Ok(fmt);
+            if self.has_format(k) && k.is_available() {
+                return Ok(*k);
             }
         }
         Err(FormatError::NoFormatMatched)
     }
 
     /// Get all registered formats.
-    pub fn formats(&self) -> &[Box<dyn Format>] {
+    pub fn formats(&self) -> &[FormatKind] {
         &self.formats
+    }
+
+    /// Deserialize using this registry.
+    pub fn deserialize<T: DeserializeOwned>(
+        &self,
+        explicit: Option<&FormatKind>,
+        candidates: &[FormatKind],
+        bytes: &[u8],
+    ) -> Result<T, FormatError> {
+        let kind = self.resolve(explicit, candidates)?;
+        deserialize(kind, bytes)
+    }
+
+    /// Serialize using this registry.
+    pub fn serialize<T: Serialize>(
+        &self,
+        explicit: Option<&FormatKind>,
+        candidates: &[FormatKind],
+        value: &T,
+    ) -> Result<Vec<u8>, FormatError> {
+        let kind = self.resolve(explicit, candidates)?;
+        serialize(kind, value)
     }
 }
 
@@ -217,22 +507,22 @@ pub fn default_registry() -> FormatRegistry {
     let mut registry = FormatRegistry::new();
 
     #[cfg(feature = "json")]
-    registry.register(Box::new(JsonFormat));
+    registry.register(FormatKind::Json);
 
     #[cfg(feature = "yaml")]
-    registry.register(Box::new(YamlFormat));
+    registry.register(FormatKind::Yaml);
 
     #[cfg(feature = "plaintext")]
-    registry.register(Box::new(PlaintextFormat));
+    registry.register(FormatKind::Plaintext);
 
     #[cfg(feature = "csv")]
-    registry.register(Box::new(CsvFormat));
+    registry.register(FormatKind::Csv);
 
     #[cfg(feature = "xml")]
-    registry.register(Box::new(XmlFormat));
+    registry.register(FormatKind::Xml);
 
     #[cfg(feature = "markdown")]
-    registry.register(Box::new(MarkdownFormat));
+    registry.register(FormatKind::Markdown);
 
     registry
 }

@@ -2,10 +2,11 @@
 
 use futures::stream::{self, BoxStream, StreamExt};
 use serde::{Serialize, de::DeserializeOwned};
+use tokio::io::AsyncReadExt;
 
 use crate::config::{AsyncInputSpec, AsyncOutputSpec, FileExistsPolicy};
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
-use crate::format::AsyncFormatRegistry;
+use crate::format::{self, AsyncFormatRegistry};
 
 /// Asynchronous I/O engine for orchestrating multi-input/multi-output operations.
 pub struct AsyncIoEngine {
@@ -90,8 +91,19 @@ impl AsyncIoEngine {
             error: Box::new(e),
         })?;
 
+        // Read all bytes
+        let mut bytes = Vec::new();
+        reader
+            .read_to_end(&mut bytes)
+            .await
+            .map_err(|e| SingleIoError {
+                stage: Stage::Open,
+                target: spec.raw.clone(),
+                error: Box::new(e),
+            })?;
+
         // Resolve the format
-        let fmt = self
+        let kind = self
             .registry
             .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
             .map_err(|e| SingleIoError {
@@ -101,7 +113,7 @@ impl AsyncIoEngine {
             })?;
 
         // Deserialize
-        fmt.deserialize::<T>(&mut *reader)
+        format::deserialize_async::<T>(kind, &bytes)
             .await
             .map_err(|e| SingleIoError {
                 stage: Stage::Parse,
@@ -162,7 +174,7 @@ impl AsyncIoEngine {
         T: Serialize + Sync,
     {
         // Resolve the format
-        let fmt = self
+        let kind = self
             .registry
             .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
             .map_err(|e| SingleIoError {
@@ -171,11 +183,20 @@ impl AsyncIoEngine {
                 error: Box::new(e),
             })?;
 
+        // Serialize to bytes
+        let bytes = format::serialize_async(kind, &values)
+            .await
+            .map_err(|e| SingleIoError {
+                stage: Stage::Serialize,
+                target: spec.raw.clone(),
+                error: Box::new(e),
+            })?;
+
         // Open the output stream
         let mut writer = self.open_output(spec).await?;
 
-        // Serialize
-        fmt.serialize(&values, &mut *writer)
+        // Write bytes
+        tokio::io::AsyncWriteExt::write_all(&mut *writer, &bytes)
             .await
             .map_err(|e| SingleIoError {
                 stage: Stage::Serialize,
@@ -190,7 +211,7 @@ impl AsyncIoEngine {
         T: Serialize + Sync,
     {
         // Resolve the format
-        let fmt = self
+        let kind = self
             .registry
             .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
             .map_err(|e| SingleIoError {
@@ -199,11 +220,20 @@ impl AsyncIoEngine {
                 error: Box::new(e),
             })?;
 
+        // Serialize to bytes
+        let bytes = format::serialize_async(kind, value)
+            .await
+            .map_err(|e| SingleIoError {
+                stage: Stage::Serialize,
+                target: spec.raw.clone(),
+                error: Box::new(e),
+            })?;
+
         // Open the output stream
         let mut writer = self.open_output(spec).await?;
 
-        // Serialize
-        fmt.serialize(value, &mut *writer)
+        // Write bytes
+        tokio::io::AsyncWriteExt::write_all(&mut *writer, &bytes)
             .await
             .map_err(|e| SingleIoError {
                 stage: Stage::Serialize,

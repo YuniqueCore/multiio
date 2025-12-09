@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::config::{AsyncInputSpec, AsyncOutputSpec, FileExistsPolicy, PipelineConfig};
 use crate::engine_async::AsyncIoEngine;
-use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
+use crate::error::{AggregateError, ErrorPolicy, SingleIoError};
 use crate::format::{AsyncFormatRegistry, FormatKind};
 use crate::io::{
     AsyncFileInput, AsyncFileOutput, AsyncInputProvider, AsyncOutputTarget, AsyncStdinInput,

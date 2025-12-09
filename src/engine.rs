@@ -1,10 +1,12 @@
 //! Synchronous I/O engine for orchestrating read and write operations.
 
+use std::io::Read;
+
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::config::{FileExistsPolicy, InputSpec, OutputSpec};
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
-use crate::format::FormatRegistry;
+use crate::format::{self, FormatRegistry};
 
 /// Synchronous I/O engine for orchestrating multi-input/multi-output operations.
 pub struct IoEngine {
@@ -93,8 +95,16 @@ impl IoEngine {
             error: Box::new(e),
         })?;
 
+        // Read all bytes
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).map_err(|e| SingleIoError {
+            stage: Stage::Open,
+            target: spec.raw.clone(),
+            error: Box::new(e),
+        })?;
+
         // Resolve the format
-        let fmt = self
+        let kind = self
             .registry
             .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
             .map_err(|e| SingleIoError {
@@ -104,12 +114,11 @@ impl IoEngine {
             })?;
 
         // Deserialize
-        fmt.deserialize::<T>(&mut *reader)
-            .map_err(|e| SingleIoError {
-                stage: Stage::Parse,
-                target: spec.raw.clone(),
-                error: Box::new(e),
-            })
+        format::deserialize::<T>(kind, &bytes).map_err(|e| SingleIoError {
+            stage: Stage::Parse,
+            target: spec.raw.clone(),
+            error: Box::new(e),
+        })
     }
 
     /// Write values to all outputs.
@@ -166,7 +175,7 @@ impl IoEngine {
         T: Serialize,
     {
         // Resolve the format
-        let fmt = self
+        let kind = self
             .registry
             .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
             .map_err(|e| SingleIoError {
@@ -175,16 +184,22 @@ impl IoEngine {
                 error: Box::new(e),
             })?;
 
+        // Serialize to bytes
+        let bytes = format::serialize(kind, &values).map_err(|e| SingleIoError {
+            stage: Stage::Serialize,
+            target: spec.raw.clone(),
+            error: Box::new(e),
+        })?;
+
         // Open the output stream based on policy
         let mut writer = self.open_output(spec)?;
 
-        // Serialize
-        fmt.serialize(&values, &mut *writer)
-            .map_err(|e| SingleIoError {
-                stage: Stage::Serialize,
-                target: spec.raw.clone(),
-                error: Box::new(e),
-            })
+        // Write bytes
+        std::io::Write::write_all(&mut *writer, &bytes).map_err(|e| SingleIoError {
+            stage: Stage::Serialize,
+            target: spec.raw.clone(),
+            error: Box::new(e),
+        })
     }
 
     /// Write a single value to a specific output.
@@ -193,7 +208,7 @@ impl IoEngine {
         T: Serialize,
     {
         // Resolve the format
-        let fmt = self
+        let kind = self
             .registry
             .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
             .map_err(|e| SingleIoError {
@@ -202,16 +217,22 @@ impl IoEngine {
                 error: Box::new(e),
             })?;
 
+        // Serialize to bytes
+        let bytes = format::serialize(kind, value).map_err(|e| SingleIoError {
+            stage: Stage::Serialize,
+            target: spec.raw.clone(),
+            error: Box::new(e),
+        })?;
+
         // Open the output stream based on policy
         let mut writer = self.open_output(spec)?;
 
-        // Serialize
-        fmt.serialize(value, &mut *writer)
-            .map_err(|e| SingleIoError {
-                stage: Stage::Serialize,
-                target: spec.raw.clone(),
-                error: Box::new(e),
-            })
+        // Write bytes
+        std::io::Write::write_all(&mut *writer, &bytes).map_err(|e| SingleIoError {
+            stage: Stage::Serialize,
+            target: spec.raw.clone(),
+            error: Box::new(e),
+        })
     }
 
     /// Open an output based on the file exists policy.

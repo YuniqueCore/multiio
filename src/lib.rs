@@ -69,7 +69,7 @@ pub use builder::MultiioBuilder;
 pub use config::{FileExistsPolicy, InputSpec, OutputSpec, PipelineConfig};
 pub use engine::IoEngine;
 pub use error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
-pub use format::{Format, FormatError, FormatKind, FormatRegistry, default_registry};
+pub use format::{FormatError, FormatKind, FormatRegistry, default_registry};
 pub use io::{
     FileInput, FileOutput, InMemorySink, InMemorySource, InputProvider, OutputTarget, StderrOutput,
     StdinInput, StdoutOutput,
@@ -83,7 +83,7 @@ pub use config::{AsyncInputSpec, AsyncOutputSpec};
 #[cfg(feature = "async")]
 pub use engine_async::AsyncIoEngine;
 #[cfg(feature = "async")]
-pub use format::{AsyncFormat, AsyncFormatRegistry, default_async_registry};
+pub use format::{AsyncFormatRegistry, default_async_registry};
 #[cfg(feature = "async")]
 pub use io::{
     AsyncFileInput, AsyncFileOutput, AsyncInputProvider, AsyncOutputTarget, AsyncStdinInput,
