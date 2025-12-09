@@ -11,6 +11,20 @@ use std::io::{Read, Write};
 mod custom;
 pub use custom::CustomFormat;
 
+// Per-format implementations
+#[cfg(feature = "csv")]
+mod csv;
+#[cfg(feature = "json")]
+mod json;
+#[cfg(feature = "markdown")]
+mod markdown;
+#[cfg(feature = "plaintext")]
+mod plaintext;
+#[cfg(feature = "xml")]
+mod xml;
+#[cfg(feature = "yaml")]
+mod yaml;
+
 use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 
@@ -158,29 +172,22 @@ pub enum FormatError {
 pub fn deserialize<T: DeserializeOwned>(kind: FormatKind, bytes: &[u8]) -> Result<T, FormatError> {
     match kind {
         #[cfg(feature = "json")]
-        FormatKind::Json => {
-            serde_json::from_slice(bytes).map_err(|e| FormatError::Serde(Box::new(e)))
-        }
+        FormatKind::Json => json::deserialize(bytes),
 
         #[cfg(feature = "yaml")]
-        FormatKind::Yaml => {
-            serde_yaml::from_slice(bytes).map_err(|e| FormatError::Serde(Box::new(e)))
-        }
+        FormatKind::Yaml => yaml::deserialize(bytes),
 
         #[cfg(feature = "csv")]
-        FormatKind::Csv => deserialize_csv(bytes),
+        FormatKind::Csv => csv::deserialize(bytes),
 
         #[cfg(feature = "xml")]
-        FormatKind::Xml => {
-            let s = String::from_utf8_lossy(bytes);
-            quick_xml::de::from_str(&s).map_err(|e| FormatError::Serde(Box::new(e)))
-        }
+        FormatKind::Xml => xml::deserialize(bytes),
 
         #[cfg(feature = "markdown")]
-        FormatKind::Markdown => deserialize_markdown(bytes),
+        FormatKind::Markdown => markdown::deserialize(bytes),
 
         #[cfg(feature = "plaintext")]
-        FormatKind::Plaintext => deserialize_plaintext(bytes),
+        FormatKind::Plaintext => plaintext::deserialize(bytes),
 
         #[allow(unreachable_patterns)]
         _ => Err(FormatError::NotEnabled(kind)),
@@ -191,28 +198,22 @@ pub fn deserialize<T: DeserializeOwned>(kind: FormatKind, bytes: &[u8]) -> Resul
 pub fn serialize<T: Serialize>(kind: FormatKind, value: &T) -> Result<Vec<u8>, FormatError> {
     match kind {
         #[cfg(feature = "json")]
-        FormatKind::Json => {
-            serde_json::to_vec_pretty(value).map_err(|e| FormatError::Serde(Box::new(e)))
-        }
+        FormatKind::Json => json::serialize(value),
 
         #[cfg(feature = "yaml")]
-        FormatKind::Yaml => serde_yaml::to_string(value)
-            .map(|s| s.into_bytes())
-            .map_err(|e| FormatError::Serde(Box::new(e))),
+        FormatKind::Yaml => yaml::serialize(value),
 
         #[cfg(feature = "csv")]
-        FormatKind::Csv => serialize_csv(value),
+        FormatKind::Csv => csv::serialize(value),
 
         #[cfg(feature = "xml")]
-        FormatKind::Xml => quick_xml::se::to_string(value)
-            .map(|s| s.into_bytes())
-            .map_err(|e| FormatError::Serde(Box::new(e))),
+        FormatKind::Xml => xml::serialize(value),
 
         #[cfg(feature = "markdown")]
-        FormatKind::Markdown => serialize_markdown(value),
+        FormatKind::Markdown => markdown::serialize(value),
 
         #[cfg(feature = "plaintext")]
-        FormatKind::Plaintext => serialize_plaintext(value),
+        FormatKind::Plaintext => plaintext::serialize(value),
 
         #[allow(unreachable_patterns)]
         _ => Err(FormatError::NotEnabled(kind)),
@@ -238,191 +239,6 @@ pub fn serialize_to_writer<T: Serialize>(
     let bytes = serialize(kind, value)?;
     writer.write_all(&bytes)?;
     Ok(())
-}
-
-// === CSV implementation ===
-#[cfg(feature = "csv")]
-fn deserialize_csv<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, FormatError> {
-    let mut rdr = csv::ReaderBuilder::new()
-        .has_headers(true)
-        .from_reader(bytes);
-
-    let records: Vec<csv::StringRecord> = rdr
-        .records()
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| FormatError::Serde(Box::new(e)))?;
-
-    let headers = rdr.headers().map_err(|e| FormatError::Serde(Box::new(e)))?;
-    let headers: Vec<&str> = headers.iter().collect();
-
-    let json_records: Vec<serde_json::Value> = records
-        .iter()
-        .map(|record| {
-            let mut obj = serde_json::Map::new();
-            for (i, field) in record.iter().enumerate() {
-                if let Some(header) = headers.get(i) {
-                    obj.insert(
-                        (*header).to_string(),
-                        serde_json::Value::String(field.to_string()),
-                    );
-                }
-            }
-            serde_json::Value::Object(obj)
-        })
-        .collect();
-
-    let json_value = serde_json::Value::Array(json_records);
-    serde_json::from_value(json_value).map_err(|e| FormatError::Serde(Box::new(e)))
-}
-
-#[cfg(feature = "csv")]
-fn serialize_csv<T: Serialize>(value: &T) -> Result<Vec<u8>, FormatError> {
-    let json_value = serde_json::to_value(value).map_err(|e| FormatError::Serde(Box::new(e)))?;
-
-    let mut wtr = csv::Writer::from_writer(Vec::new());
-
-    match json_value {
-        serde_json::Value::Array(arr) => {
-            if let Some(first) = arr.first()
-                && let serde_json::Value::Object(obj) = first
-            {
-                let headers: Vec<&str> = obj.keys().map(|s| s.as_str()).collect();
-                wtr.write_record(&headers)
-                    .map_err(|e| FormatError::Serde(Box::new(e)))?;
-            }
-
-            for item in arr {
-                if let serde_json::Value::Object(obj) = item {
-                    let record: Vec<String> = obj
-                        .values()
-                        .map(|v| match v {
-                            serde_json::Value::String(s) => s.clone(),
-                            _ => v.to_string(),
-                        })
-                        .collect();
-                    wtr.write_record(&record)
-                        .map_err(|e| FormatError::Serde(Box::new(e)))?;
-                }
-            }
-        }
-        serde_json::Value::Object(obj) => {
-            let headers: Vec<&str> = obj.keys().map(|s| s.as_str()).collect();
-            wtr.write_record(&headers)
-                .map_err(|e| FormatError::Serde(Box::new(e)))?;
-
-            let record: Vec<String> = obj
-                .values()
-                .map(|v| match v {
-                    serde_json::Value::String(s) => s.clone(),
-                    _ => v.to_string(),
-                })
-                .collect();
-            wtr.write_record(&record)
-                .map_err(|e| FormatError::Serde(Box::new(e)))?;
-        }
-        _ => {
-            return Err(FormatError::Other(Box::new(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "CSV format requires an array or object",
-            ))));
-        }
-    }
-
-    wtr.into_inner()
-        .map_err(|e| FormatError::Other(Box::new(e)))
-}
-
-// === Plaintext implementation ===
-#[cfg(feature = "plaintext")]
-fn deserialize_plaintext<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, FormatError> {
-    let s = String::from_utf8_lossy(bytes);
-
-    // Try JSON first if available
-    #[cfg(feature = "json")]
-    if let Ok(v) = serde_json::from_str(&s) {
-        return Ok(v);
-    }
-
-    // Fall back to string deserializer
-    let deserializer =
-        serde::de::value::StringDeserializer::<serde::de::value::Error>::new(s.into_owned());
-    T::deserialize(deserializer).map_err(|e| FormatError::Serde(Box::new(e)))
-}
-
-#[cfg(feature = "plaintext")]
-fn serialize_plaintext<T: Serialize>(value: &T) -> Result<Vec<u8>, FormatError> {
-    #[cfg(feature = "json")]
-    {
-        serde_json::to_vec_pretty(value).map_err(|e| FormatError::Serde(Box::new(e)))
-    }
-    #[cfg(not(feature = "json"))]
-    {
-        // Use debug format as fallback
-        let _ = value; // suppress unused warning
-        Err(FormatError::Other(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Plaintext serialization requires JSON feature",
-        ))))
-    }
-}
-
-// === Markdown implementation ===
-#[cfg(feature = "markdown")]
-fn extract_code_block(content: &str, lang: &str) -> Option<String> {
-    let fence_start = format!("```{}", lang);
-    let fence_end = "```";
-
-    let start_idx = content.find(&fence_start)?;
-    let content_start = start_idx + fence_start.len();
-    let remaining = &content[content_start..];
-
-    let content_start = if remaining.starts_with('\n') {
-        content_start + 1
-    } else {
-        content_start
-    };
-
-    let remaining = &content[content_start..];
-    let end_idx = remaining.find(fence_end)?;
-
-    Some(remaining[..end_idx].trim_end().to_string())
-}
-
-#[cfg(feature = "markdown")]
-fn deserialize_markdown<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, FormatError> {
-    let content = String::from_utf8_lossy(bytes);
-
-    #[cfg(feature = "json")]
-    if let Some(json_content) = extract_code_block(&content, "json") {
-        return serde_json::from_str(&json_content).map_err(|e| FormatError::Serde(Box::new(e)));
-    }
-
-    #[cfg(feature = "yaml")]
-    if let Some(yaml_content) = extract_code_block(&content, "yaml") {
-        return serde_yaml::from_str(&yaml_content).map_err(|e| FormatError::Serde(Box::new(e)));
-    }
-
-    let deserializer =
-        serde::de::value::StringDeserializer::<serde::de::value::Error>::new(content.into_owned());
-    T::deserialize(deserializer).map_err(|e| FormatError::Serde(Box::new(e)))
-}
-
-#[cfg(feature = "markdown")]
-fn serialize_markdown<T: Serialize>(value: &T) -> Result<Vec<u8>, FormatError> {
-    #[cfg(feature = "json")]
-    {
-        let json_str =
-            serde_json::to_string_pretty(value).map_err(|e| FormatError::Serde(Box::new(e)))?;
-        Ok(format!("```json\n{}\n```", json_str).into_bytes())
-    }
-    #[cfg(not(feature = "json"))]
-    {
-        let _ = value;
-        Err(FormatError::Other(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Markdown serialization requires JSON feature",
-        ))))
-    }
 }
 
 /// Registry for managing available formats, including custom formats.
