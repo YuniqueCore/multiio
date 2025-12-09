@@ -1,6 +1,6 @@
 //! Custom format tests.
 
-use multiio::format::{CustomFormat, FormatError, FormatKind, FormatRegistry};
+use crate::format::{CustomFormat, FormatError, FormatKind, FormatRegistry};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]

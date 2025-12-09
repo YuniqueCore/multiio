@@ -1,9 +1,8 @@
 //! Tests for standard IO providers.
 
-use multiio::{FileInput, FileOutput, InputProvider, OutputTarget};
+use crate::{FileInput, FileOutput, InputProvider, OutputTarget};
 use std::fs;
 use std::io::Read;
-use std::path::PathBuf;
 
 #[test]
 fn file_input_reads_file() {

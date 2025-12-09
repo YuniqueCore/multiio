@@ -1,6 +1,6 @@
 //! Tests for PipelineConfig parsing and builder helpers.
 
-use multiio::config::PipelineConfig;
+use crate::config::PipelineConfig;
 
 #[test]
 fn parse_minimal_pipeline_config() {

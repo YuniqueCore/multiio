@@ -1,6 +1,6 @@
 //! Tests for in-memory IO implementations.
 
-use multiio::{InMemorySink, InMemorySource, InputProvider, OutputTarget};
+use crate::{InMemorySink, InMemorySource, InputProvider, OutputTarget};
 use std::io::{Read, Write};
 
 #[test]

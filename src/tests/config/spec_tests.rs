@@ -1,8 +1,8 @@
 //! Tests for InputSpec and OutputSpec.
 
-use multiio::FormatKind;
-use multiio::config::{FileExistsPolicy, InputSpec, OutputSpec};
-use multiio::io::{InMemorySink, InMemorySource};
+use crate::FormatKind;
+use crate::config::{FileExistsPolicy, InputSpec, OutputSpec};
+use crate::io::{InMemorySink, InMemorySource};
 use std::sync::Arc;
 
 #[test]

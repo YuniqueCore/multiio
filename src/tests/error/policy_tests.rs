@@ -1,6 +1,6 @@
 //! Tests for ErrorPolicy behavior.
 
-use multiio::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
+use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
 
 #[test]
 fn error_policy_default_is_accumulate() {

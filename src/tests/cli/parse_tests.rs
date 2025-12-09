@@ -1,7 +1,7 @@
 //! Tests for CLI helper functions (parse_format, infer_format_from_path).
 
-use multiio::FormatKind;
-use multiio::cli::{infer_format_from_path, parse_format};
+use crate::FormatKind;
+use crate::cli::{infer_format_from_path, parse_format};
 
 #[test]
 fn test_parse_format() {

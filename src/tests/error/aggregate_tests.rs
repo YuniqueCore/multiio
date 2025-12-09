@@ -1,6 +1,6 @@
 //! Tests for AggregateError formatting.
 
-use multiio::error::{AggregateError, SingleIoError, Stage};
+use crate::error::{AggregateError, SingleIoError, Stage};
 
 #[test]
 fn aggregate_error_display_includes_count() {

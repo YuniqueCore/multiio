@@ -1,6 +1,6 @@
 //! JSON format tests.
 
-use multiio::format::{FormatKind, deserialize, serialize};
+use crate::format::{FormatKind, deserialize, serialize};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]

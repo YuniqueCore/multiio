@@ -59,6 +59,9 @@ pub mod error;
 pub mod format;
 pub mod io;
 
+#[cfg(test)]
+pub mod tests;
+
 // Async modules (feature-gated)
 #[cfg(feature = "async")]
 pub mod builder_async;
