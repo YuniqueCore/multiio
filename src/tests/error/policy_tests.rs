@@ -13,7 +13,7 @@ fn aggregate_error_single_and_len() {
     let err = SingleIoError {
         stage: Stage::Open,
         target: "test".to_string(),
-        error: Box::new(std::io::Error::new(std::io::ErrorKind::Other, "oops")),
+        error: Box::new(std::io::Error::other("oops")),
     };
 
     let agg = AggregateError::single(err);

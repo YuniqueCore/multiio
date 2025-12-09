@@ -29,8 +29,8 @@ test:
     cargo test --workspace -F full
 
 
-# build 
-build: 
+# build
+build:
     cargo build --workspace -F full
 
 # run prek

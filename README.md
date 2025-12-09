@@ -4,12 +4,16 @@ A unified I/O orchestration library for CLI and server applications in Rust.
 
 ## Overview
 
-multiio provides a clean abstraction for handling multiple inputs and outputs with automatic format detection and conversion. It supports both synchronous and asynchronous I/O patterns.
+multiio provides a clean abstraction for handling multiple inputs and outputs
+with automatic format detection and conversion. It supports both synchronous and
+asynchronous I/O patterns.
 
 ### Key Features
 
-- **Multi-input/Multi-output**: Read from and write to multiple sources simultaneously
-- **Format Abstraction**: Built-in support for JSON, YAML, CSV, XML, Markdown, and plaintext
+- **Multi-input/Multi-output**: Read from and write to multiple sources
+  simultaneously
+- **Format Abstraction**: Built-in support for JSON, YAML, CSV, XML, Markdown,
+  and plaintext
 - **Sync and Async**: Both synchronous and asynchronous I/O support
 - **Error Handling**: Configurable error policies (FastFail or Accumulate)
 - **Pipeline Configuration**: Define I/O workflows via YAML/JSON config files
@@ -39,7 +43,7 @@ struct Config {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let registry = default_registry();
-    
+
     let engine = MultiioBuilder::new(registry)
         .add_input("config.json")
         .add_output("-")  // stdout
@@ -68,7 +72,7 @@ use multiio::{default_async_registry, ErrorPolicy, MultiioAsyncBuilder};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let registry = default_async_registry();
-    
+
     let engine = MultiioAsyncBuilder::new(registry)
         .add_input("config.yaml")
         .add_output("output.json")
@@ -83,17 +87,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Features
 
-| Feature | Description | Default |
-|---------|-------------|---------|
-| `json` | JSON format support | ✓ |
-| `yaml` | YAML format support | ✓ |
-| `csv` | CSV format support | ✓ |
-| `plaintext` | Plaintext format support | ✓ |
-| `xml` | XML format support | |
-| `markdown` | Markdown format support | |
-| `async` | Async I/O with Tokio | |
-| `miette` | Pretty error reporting | |
-| `full` | All features | |
+| Feature     | Description              | Default |
+| ----------- | ------------------------ | ------- |
+| `json`      | JSON format support      | ✓       |
+| `yaml`      | YAML format support      | ✓       |
+| `csv`       | CSV format support       | ✓       |
+| `plaintext` | Plaintext format support | ✓       |
+| `xml`       | XML format support       |         |
+| `markdown`  | Markdown format support  |         |
+| `async`     | Async I/O with Tokio     |         |
+| `miette`    | Pretty error reporting   |         |
+| `full`      | All features             |         |
 
 ## Architecture
 

@@ -3,7 +3,7 @@
 use serde::Deserialize;
 
 /// Configuration for an entire I/O pipeline.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct PipelineConfig {
     /// Input configurations
     #[serde(default)]
@@ -53,17 +53,6 @@ pub struct OutputConfig {
     /// File exists policy: "overwrite", "append", "error"
     #[serde(default)]
     pub file_exists_policy: Option<String>,
-}
-
-impl Default for PipelineConfig {
-    fn default() -> Self {
-        Self {
-            inputs: Vec::new(),
-            outputs: Vec::new(),
-            error_policy: None,
-            format_order: None,
-        }
-    }
 }
 
 impl PipelineConfig {

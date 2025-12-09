@@ -13,14 +13,14 @@
 //! struct Cli {
 //!     #[clap(flatten)]
 //!     input: InputArgs,
-//!     
+//!
 //!     #[clap(flatten)]
 //!     output: OutputArgs,
 //! }
 //!
 //! fn main() {
 //!     let cli = Cli::parse();
-//!     
+//!
 //!     let builder = MultiioBuilder::new(default_registry())
 //!         .with_input_args(&cli.input)
 //!         .with_output_args(&cli.output);

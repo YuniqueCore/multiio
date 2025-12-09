@@ -59,9 +59,6 @@ pub mod error;
 pub mod format;
 pub mod io;
 
-#[cfg(test)]
-pub mod tests;
-
 // Async modules (feature-gated)
 #[cfg(feature = "async")]
 pub mod builder_async;
@@ -97,3 +94,7 @@ pub use io::{
 // Miette re-exports
 #[cfg(feature = "miette")]
 pub use error::IoDiagnostic;
+
+// Internal test modules (see src/tests)
+#[cfg(test)]
+mod tests;

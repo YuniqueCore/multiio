@@ -283,12 +283,12 @@ fn serialize_csv<T: Serialize>(value: &T) -> Result<Vec<u8>, FormatError> {
 
     match json_value {
         serde_json::Value::Array(arr) => {
-            if let Some(first) = arr.first() {
-                if let serde_json::Value::Object(obj) = first {
-                    let headers: Vec<&str> = obj.keys().map(|s| s.as_str()).collect();
-                    wtr.write_record(&headers)
-                        .map_err(|e| FormatError::Serde(Box::new(e)))?;
-                }
+            if let Some(first) = arr.first()
+                && let serde_json::Value::Object(obj) = first
+            {
+                let headers: Vec<&str> = obj.keys().map(|s| s.as_str()).collect();
+                wtr.write_record(&headers)
+                    .map_err(|e| FormatError::Serde(Box::new(e)))?;
             }
 
             for item in arr {
@@ -512,7 +512,7 @@ impl FormatRegistry {
                 .iter()
                 .any(|e| e.eq_ignore_ascii_case(&ext_lower))
             {
-                return Some(kind.clone());
+                return Some(*kind);
             }
         }
 
@@ -534,13 +534,13 @@ impl FormatRegistry {
     ) -> Result<FormatKind, FormatError> {
         if let Some(k) = explicit {
             if self.has_format(k) && k.is_available() {
-                return Ok(k.clone());
+                return Ok(*k);
             }
-            return Err(FormatError::UnknownFormat(k.clone()));
+            return Err(FormatError::UnknownFormat(*k));
         }
         for k in candidates {
             if self.has_format(k) && k.is_available() {
-                return Ok(k.clone());
+                return Ok(*k);
             }
         }
         Err(FormatError::NoFormatMatched)
@@ -571,7 +571,7 @@ impl FormatRegistry {
         if let FormatKind::Custom(name) = &kind {
             let custom = self
                 .get_custom(name)
-                .ok_or_else(|| FormatError::UnknownFormat(kind.clone()))?;
+                .ok_or_else(|| FormatError::UnknownFormat(kind))?;
             return custom.deserialize(bytes);
         }
 
@@ -594,7 +594,7 @@ impl FormatRegistry {
         if let FormatKind::Custom(name) = &kind {
             let custom = self
                 .get_custom(name)
-                .ok_or_else(|| FormatError::UnknownFormat(kind.clone()))?;
+                .ok_or_else(|| FormatError::UnknownFormat(kind))?;
             return custom.serialize(value);
         }
 
