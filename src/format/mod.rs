@@ -4,14 +4,18 @@
 //! - `FormatKind`: Enum representing different data formats
 //! - `FormatError`: Errors that can occur during format operations
 //! - `FormatRegistry`: Registry managing formats by kind
+//! - `CustomFormat`: Support for user-defined custom formats
 
 use std::io::{Read, Write};
+
+mod custom;
+pub use custom::CustomFormat;
 
 use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 
 /// Represents different data format types.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FormatKind {
     /// Plain text format
     Plaintext,
@@ -25,6 +29,8 @@ pub enum FormatKind {
     Csv,
     /// Markdown format
     Markdown,
+    /// Custom format with a unique name
+    Custom(&'static str),
 }
 
 impl std::fmt::Display for FormatKind {
@@ -36,7 +42,18 @@ impl std::fmt::Display for FormatKind {
             FormatKind::Xml => write!(f, "xml"),
             FormatKind::Csv => write!(f, "csv"),
             FormatKind::Markdown => write!(f, "markdown"),
+            FormatKind::Custom(name) => write!(f, "{}", name),
         }
+    }
+}
+
+impl Copy for FormatKind {}
+
+// Manual Copy implementation doesn't work with &'static str, use Clone instead
+impl FormatKind {
+    /// Create a custom format kind with the given name.
+    pub fn custom(name: &'static str) -> Self {
+        FormatKind::Custom(name)
     }
 }
 
@@ -55,6 +72,8 @@ impl FormatKind {
     }
 
     /// Get file extensions for this format.
+    /// Note: For custom formats, this returns an empty slice.
+    /// Use FormatRegistry to get extensions for custom formats.
     pub fn extensions(&self) -> &'static [&'static str] {
         match self {
             FormatKind::Plaintext => &["txt", "text"],
@@ -63,6 +82,7 @@ impl FormatKind {
             FormatKind::Xml => &["xml"],
             FormatKind::Csv => &["csv"],
             FormatKind::Markdown => &["md", "markdown"],
+            FormatKind::Custom(_) => &[],
         }
     }
 
@@ -98,6 +118,10 @@ impl FormatKind {
             FormatKind::Plaintext => true,
             #[cfg(not(feature = "plaintext"))]
             FormatKind::Plaintext => false,
+
+            // Custom formats are always considered available
+            // (availability is determined by registration)
+            FormatKind::Custom(_) => true,
         }
     }
 }
@@ -401,16 +425,13 @@ fn serialize_markdown<T: Serialize>(value: &T) -> Result<Vec<u8>, FormatError> {
     }
 }
 
-/// Registry for managing available formats.
-#[derive(Debug, Clone)]
+/// Registry for managing available formats, including custom formats.
+#[derive(Debug, Clone, Default)]
 pub struct FormatRegistry {
+    /// Built-in format kinds
     formats: Vec<FormatKind>,
-}
-
-impl Default for FormatRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
+    /// Custom format handlers
+    custom_formats: Vec<CustomFormat>,
 }
 
 impl FormatRegistry {
@@ -418,19 +439,55 @@ impl FormatRegistry {
     pub fn new() -> Self {
         Self {
             formats: Vec::new(),
+            custom_formats: Vec::new(),
         }
     }
 
-    /// Register a format.
+    /// Register a built-in format.
     pub fn register(&mut self, kind: FormatKind) {
         if !self.formats.contains(&kind) {
             self.formats.push(kind);
         }
     }
 
-    /// Register a format (builder pattern).
+    /// Register a built-in format (builder pattern).
     pub fn with_format(mut self, kind: FormatKind) -> Self {
         self.register(kind);
+        self
+    }
+
+    /// Register a custom format handler.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use multiio::format::{CustomFormat, FormatRegistry, FormatError};
+    ///
+    /// let mut registry = FormatRegistry::new();
+    /// registry.register_custom(
+    ///     CustomFormat::new("toml", &["toml"])
+    ///         .with_deserialize(|bytes| {
+    ///             // Your deserialization logic
+    ///             Ok(serde_json::Value::Null)
+    ///         })
+    ///         .with_serialize(|value| {
+    ///             // Your serialization logic
+    ///             Ok(Vec::new())
+    ///         })
+    /// );
+    /// ```
+    pub fn register_custom(&mut self, format: CustomFormat) {
+        // Also register the FormatKind::Custom variant
+        let kind = FormatKind::Custom(format.name);
+        if !self.formats.contains(&kind) {
+            self.formats.push(kind);
+        }
+        self.custom_formats.push(format);
+    }
+
+    /// Register a custom format handler (builder pattern).
+    pub fn with_custom_format(mut self, format: CustomFormat) -> Self {
+        self.register_custom(format);
         self
     }
 
@@ -439,18 +496,33 @@ impl FormatRegistry {
         self.formats.contains(kind)
     }
 
+    /// Get the custom format handler for a format kind.
+    pub fn get_custom(&self, name: &str) -> Option<&CustomFormat> {
+        self.custom_formats.iter().find(|f| f.name == name)
+    }
+
     /// Get format kind for a file extension.
     pub fn kind_for_extension(&self, ext: &str) -> Option<FormatKind> {
         let ext_lower = ext.to_ascii_lowercase();
+
+        // Check built-in formats first
         for kind in &self.formats {
             if kind
                 .extensions()
                 .iter()
                 .any(|e| e.eq_ignore_ascii_case(&ext_lower))
             {
-                return Some(*kind);
+                return Some(kind.clone());
             }
         }
+
+        // Check custom formats
+        for custom in &self.custom_formats {
+            if custom.matches_extension(&ext_lower) {
+                return Some(FormatKind::Custom(custom.name));
+            }
+        }
+
         None
     }
 
@@ -462,42 +534,71 @@ impl FormatRegistry {
     ) -> Result<FormatKind, FormatError> {
         if let Some(k) = explicit {
             if self.has_format(k) && k.is_available() {
-                return Ok(*k);
+                return Ok(k.clone());
             }
-            return Err(FormatError::UnknownFormat(*k));
+            return Err(FormatError::UnknownFormat(k.clone()));
         }
         for k in candidates {
             if self.has_format(k) && k.is_available() {
-                return Ok(*k);
+                return Ok(k.clone());
             }
         }
         Err(FormatError::NoFormatMatched)
     }
 
-    /// Get all registered formats.
+    /// Get all registered format kinds.
     pub fn formats(&self) -> &[FormatKind] {
         &self.formats
     }
 
+    /// Get all registered custom formats.
+    pub fn custom_formats(&self) -> &[CustomFormat] {
+        &self.custom_formats
+    }
+
     /// Deserialize using this registry.
-    pub fn deserialize<T: DeserializeOwned>(
+    ///
+    /// Automatically handles both built-in and custom formats.
+    pub fn deserialize_value<T: DeserializeOwned>(
         &self,
         explicit: Option<&FormatKind>,
         candidates: &[FormatKind],
         bytes: &[u8],
     ) -> Result<T, FormatError> {
         let kind = self.resolve(explicit, candidates)?;
+
+        // Handle custom formats
+        if let FormatKind::Custom(name) = &kind {
+            let custom = self
+                .get_custom(name)
+                .ok_or_else(|| FormatError::UnknownFormat(kind.clone()))?;
+            return custom.deserialize(bytes);
+        }
+
+        // Handle built-in formats
         deserialize(kind, bytes)
     }
 
     /// Serialize using this registry.
-    pub fn serialize<T: Serialize>(
+    ///
+    /// Automatically handles both built-in and custom formats.
+    pub fn serialize_value<T: Serialize>(
         &self,
         explicit: Option<&FormatKind>,
         candidates: &[FormatKind],
         value: &T,
     ) -> Result<Vec<u8>, FormatError> {
         let kind = self.resolve(explicit, candidates)?;
+
+        // Handle custom formats
+        if let FormatKind::Custom(name) = &kind {
+            let custom = self
+                .get_custom(name)
+                .ok_or_else(|| FormatError::UnknownFormat(kind.clone()))?;
+            return custom.serialize(value);
+        }
+
+        // Handle built-in formats
         serialize(kind, value)
     }
 }

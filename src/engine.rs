@@ -6,7 +6,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::config::{FileExistsPolicy, InputSpec, OutputSpec};
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
-use crate::format::{self, FormatRegistry};
+use crate::format::FormatRegistry;
 
 /// Synchronous I/O engine for orchestrating multi-input/multi-output operations.
 pub struct IoEngine {
@@ -103,22 +103,18 @@ impl IoEngine {
             error: Box::new(e),
         })?;
 
-        // Resolve the format
-        let kind = self
-            .registry
-            .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
+        // Deserialize (handles both built-in and custom formats)
+        self.registry
+            .deserialize_value::<T>(
+                spec.explicit_format.as_ref(),
+                &spec.format_candidates,
+                &bytes,
+            )
             .map_err(|e| SingleIoError {
-                stage: Stage::ResolveInput,
+                stage: Stage::Parse,
                 target: spec.raw.clone(),
                 error: Box::new(e),
-            })?;
-
-        // Deserialize
-        format::deserialize::<T>(kind, &bytes).map_err(|e| SingleIoError {
-            stage: Stage::Parse,
-            target: spec.raw.clone(),
-            error: Box::new(e),
-        })
+            })
     }
 
     /// Write values to all outputs.
@@ -174,22 +170,19 @@ impl IoEngine {
     where
         T: Serialize,
     {
-        // Resolve the format
-        let kind = self
+        // Serialize to bytes (handles both built-in and custom formats)
+        let bytes = self
             .registry
-            .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
+            .serialize_value::<&[T]>(
+                spec.explicit_format.as_ref(),
+                &spec.format_candidates,
+                &values,
+            )
             .map_err(|e| SingleIoError {
-                stage: Stage::ResolveOutput,
+                stage: Stage::Serialize,
                 target: spec.raw.clone(),
                 error: Box::new(e),
             })?;
-
-        // Serialize to bytes
-        let bytes = format::serialize(kind, &values).map_err(|e| SingleIoError {
-            stage: Stage::Serialize,
-            target: spec.raw.clone(),
-            error: Box::new(e),
-        })?;
 
         // Open the output stream based on policy
         let mut writer = self.open_output(spec)?;
@@ -207,22 +200,19 @@ impl IoEngine {
     where
         T: Serialize,
     {
-        // Resolve the format
-        let kind = self
+        // Serialize to bytes (handles both built-in and custom formats)
+        let bytes = self
             .registry
-            .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
+            .serialize_value(
+                spec.explicit_format.as_ref(),
+                &spec.format_candidates,
+                value,
+            )
             .map_err(|e| SingleIoError {
-                stage: Stage::ResolveOutput,
+                stage: Stage::Serialize,
                 target: spec.raw.clone(),
                 error: Box::new(e),
             })?;
-
-        // Serialize to bytes
-        let bytes = format::serialize(kind, value).map_err(|e| SingleIoError {
-            stage: Stage::Serialize,
-            target: spec.raw.clone(),
-            error: Box::new(e),
-        })?;
 
         // Open the output stream based on policy
         let mut writer = self.open_output(spec)?;
