@@ -2,5 +2,51 @@
 name = "multiio"
 version = "0.1.0"
 edition = "2024"
+description = "A unified I/O orchestration library for CLI/server applications"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+keywords = ["io", "cli", "multi-input", "multi-output", "format"]
+categories = ["command-line-interface", "encoding", "parser-implementations"]
+
+[features]
+default = ["json", "yaml", "csv", "plaintext"]
+json = ["serde_json"]
+yaml = ["serde_yaml"]
+csv = ["dep:csv"]
+xml = ["quick-xml"]
+markdown = []
+plaintext = []
+async = ["tokio", "async-trait", "futures"]
+miette = ["dep:miette", "thiserror"]
+full = [
+    "json",
+    "yaml",
+    "csv",
+    "xml",
+    "markdown",
+    "plaintext",
+    "async",
+    "miette",
+]
 
 [dependencies]
+serde = { version = "1.0", features = ["derive"] }
+thiserror = "2"
+
+# Format-specific dependencies (optional)
+serde_json = { version = "1.0", optional = true }
+serde_yaml = { version = "0.9", optional = true }
+csv = { version = "1.4", optional = true }
+quick-xml = { version = "0.38", features = ["serialize"], optional = true }
+
+# Async support (optional)
+tokio = { version = "1", features = ["io-util", "fs", "rt"], optional = true }
+async-trait = { version = "0.1", optional = true }
+futures = { version = "0.3", optional = true }
+
+# Error reporting (optional)
+miette = { version = "7", optional = true }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tempfile = "3"
