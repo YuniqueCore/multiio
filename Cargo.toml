@@ -17,7 +17,7 @@ xml = ["quick-xml"]
 markdown = []
 plaintext = []
 async = ["tokio", "async-trait", "futures"]
-miette = ["dep:miette", "thiserror"]
+miette = ["dep:miette"]
 full = [
     "json",
     "yaml",
