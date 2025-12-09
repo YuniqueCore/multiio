@@ -1,0 +1,5 @@
+{
+    "name": "example-config",
+    "value": 42,
+    "enabled": true
+}
