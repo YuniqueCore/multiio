@@ -63,9 +63,10 @@ impl IoEngine {
     {
         let mut results = Vec::with_capacity(self.inputs.len());
         let mut errors = Vec::new();
+        let mut buffer = Vec::new();
 
         for spec in &self.inputs {
-            match self.read_one::<T>(spec) {
+            match self.read_one_with_buffer::<T>(spec, &mut buffer) {
                 Ok(value) => results.push(value),
                 Err(e) => {
                     errors.push(e);
@@ -88,6 +89,18 @@ impl IoEngine {
     where
         T: DeserializeOwned,
     {
+        let mut buffer = Vec::new();
+        self.read_one_with_buffer::<T>(spec, &mut buffer)
+    }
+
+    fn read_one_with_buffer<T>(
+        &self,
+        spec: &InputSpec,
+        buffer: &mut Vec<u8>,
+    ) -> Result<T, SingleIoError>
+    where
+        T: DeserializeOwned,
+    {
         // Open the input stream
         let mut reader = spec.provider.open().map_err(|e| SingleIoError {
             stage: Stage::Open,
@@ -95,9 +108,9 @@ impl IoEngine {
             error: Box::new(e),
         })?;
 
-        // Read all bytes
-        let mut bytes = Vec::new();
-        reader.read_to_end(&mut bytes).map_err(|e| SingleIoError {
+        // Read all bytes into the reusable buffer
+        buffer.clear();
+        reader.read_to_end(buffer).map_err(|e| SingleIoError {
             stage: Stage::Open,
             target: spec.raw.clone(),
             error: Box::new(e),
@@ -108,7 +121,7 @@ impl IoEngine {
             .deserialize_value::<T>(
                 spec.explicit_format.as_ref(),
                 &spec.format_candidates,
-                &bytes,
+                buffer,
             )
             .map_err(|e| SingleIoError {
                 stage: Stage::Parse,
@@ -255,5 +268,75 @@ impl IoEngine {
         T: DeserializeOwned,
     {
         self.inputs.iter().map(|spec| self.read_one::<T>(spec))
+    }
+
+    /// Stream CSV records from all inputs whose resolved format is CSV.
+    ///
+    /// Each CSV record is deserialized into `T`. Errors are reported per-record
+    /// as `SingleIoError` with appropriate stage and target information.
+    pub fn read_csv_records<T>(&self) -> impl Iterator<Item = Result<T, SingleIoError>> + '_
+    where
+        T: DeserializeOwned + 'static,
+    {
+        self.inputs
+            .iter()
+            .flat_map(move |spec| self.csv_stream_for_spec::<T>(spec))
+    }
+
+    fn csv_stream_for_spec<T>(
+        &self,
+        spec: &InputSpec,
+    ) -> Box<dyn Iterator<Item = Result<T, SingleIoError>> + '_>
+    where
+        T: DeserializeOwned + 'static,
+    {
+        // Resolve format first
+        let kind = match self
+            .registry
+            .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
+        {
+            Ok(k) => k,
+            Err(e) => {
+                let err = SingleIoError {
+                    stage: Stage::ResolveInput,
+                    target: spec.raw.clone(),
+                    error: Box::new(e),
+                };
+                return Box::new(std::iter::once(Err(err)));
+            }
+        };
+
+        if kind != crate::format::FormatKind::Csv {
+            let err = SingleIoError {
+                stage: Stage::ResolveInput,
+                target: spec.raw.clone(),
+                error: Box::new(crate::format::FormatError::UnknownFormat(kind)),
+            };
+            return Box::new(std::iter::once(Err(err)));
+        }
+
+        // Open the input
+        let reader = match spec.provider.open() {
+            Ok(r) => r,
+            Err(e) => {
+                let err = SingleIoError {
+                    stage: Stage::Open,
+                    target: spec.raw.clone(),
+                    error: Box::new(e),
+                };
+                return Box::new(std::iter::once(Err(err)));
+            }
+        };
+
+        let target = spec.raw.clone();
+        let iter = crate::format::deserialize_csv_stream::<T, _>(reader).map(move |res| {
+            res.map_err(|e| SingleIoError {
+                stage: Stage::Parse,
+                target: target.clone(),
+                error: Box::new(e),
+            })
+        });
+
+        Box::new(iter)
     }
 }

@@ -1,5 +1,7 @@
 //! CSV format implementation.
 
+use std::io::Read;
+
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::FormatError;
@@ -41,6 +43,37 @@ pub(crate) fn deserialize<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, Format
 
     let json_value = serde_json::Value::Array(json_records);
     serde_json::from_value(json_value).map_err(|e| FormatError::Serde(Box::new(e)))
+}
+
+pub(crate) struct CsvRecordStream<R, T> {
+    iter: csv::DeserializeRecordsIntoIter<R, T>,
+}
+
+impl<R, T> Iterator for CsvRecordStream<R, T>
+where
+    R: Read,
+    T: DeserializeOwned,
+{
+    type Item = Result<T, FormatError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter
+            .next()
+            .map(|res| res.map_err(|e| FormatError::Serde(Box::new(e))))
+    }
+}
+
+pub(crate) fn stream_deserialize<T, R>(reader: R) -> CsvRecordStream<R, T>
+where
+    T: DeserializeOwned,
+    R: Read,
+{
+    let rdr = csv::ReaderBuilder::new()
+        .has_headers(true)
+        .from_reader(reader);
+    CsvRecordStream {
+        iter: rdr.into_deserialize(),
+    }
 }
 
 pub(crate) fn serialize<T: Serialize>(value: &T) -> Result<Vec<u8>, FormatError> {

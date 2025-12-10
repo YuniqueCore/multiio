@@ -59,9 +59,10 @@ impl AsyncIoEngine {
     {
         let mut results = Vec::with_capacity(self.inputs.len());
         let mut errors = Vec::new();
+        let mut buffer = Vec::new();
 
         for spec in &self.inputs {
-            match self.read_one::<T>(spec).await {
+            match self.read_one_with_buffer::<T>(spec, &mut buffer).await {
                 Ok(value) => results.push(value),
                 Err(e) => {
                     errors.push(e);
@@ -84,6 +85,18 @@ impl AsyncIoEngine {
     where
         T: DeserializeOwned + Send + 'static,
     {
+        let mut buffer = Vec::new();
+        self.read_one_with_buffer::<T>(spec, &mut buffer).await
+    }
+
+    async fn read_one_with_buffer<T>(
+        &self,
+        spec: &AsyncInputSpec,
+        buffer: &mut Vec<u8>,
+    ) -> Result<T, SingleIoError>
+    where
+        T: DeserializeOwned + Send + 'static,
+    {
         // Open the input stream
         let mut reader = spec.provider.open().await.map_err(|e| SingleIoError {
             stage: Stage::Open,
@@ -91,10 +104,10 @@ impl AsyncIoEngine {
             error: Box::new(e),
         })?;
 
-        // Read all bytes
-        let mut bytes = Vec::new();
+        // Read all bytes into the reusable buffer
+        buffer.clear();
         reader
-            .read_to_end(&mut bytes)
+            .read_to_end(buffer)
             .await
             .map_err(|e| SingleIoError {
                 stage: Stage::Open,
@@ -113,7 +126,7 @@ impl AsyncIoEngine {
             })?;
 
         // Deserialize
-        format::deserialize_async::<T>(kind, &bytes)
+        format::deserialize_async::<T>(kind, buffer)
             .await
             .map_err(|e| SingleIoError {
                 stage: Stage::Parse,
