@@ -68,6 +68,7 @@ mod async_stream {
     use futures::StreamExt;
 
     use crate::config::AsyncInputSpec;
+    use crate::format::{CustomFormat, FormatError, FormatRegistry};
     use crate::io::AsyncFileInput;
     use crate::{AsyncIoEngine, default_async_registry};
 
@@ -289,5 +290,74 @@ mod async_stream {
             names,
             vec!["a".to_string(), "b".to_string(), "c".to_string()]
         );
+    }
+
+    #[tokio::test]
+    async fn async_read_records_async_streams_custom_ndjson_via_bridge() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let path = dir.path().join("rows.ndjson");
+        let jsonl = "{\"name\":\"foo\",\"value\":1}\n{\"name\":\"bar\",\"value\":2}\n";
+        tokio::fs::write(&path, jsonl).await.unwrap();
+
+        // Set up a sync registry with a custom NDJSON-like streaming format.
+        let mut sync_registry = FormatRegistry::new();
+
+        let fmt = CustomFormat::new("ndjson", &["ndjson"])
+            .with_deserialize(|bytes| {
+                // Fallback non-streaming handler: parse a single JSON value
+                serde_json::from_slice(bytes).map_err(|e| FormatError::Serde(Box::new(e)))
+            })
+            .with_serialize(|value| {
+                serde_json::to_vec(value).map_err(|e| FormatError::Serde(Box::new(e)))
+            })
+            .with_stream_deserialize(|reader| {
+                use std::io::{BufRead, BufReader};
+
+                let buf = BufReader::new(reader);
+                let iter = buf.lines().map(|line_res| {
+                    let line = line_res.map_err(FormatError::Io)?;
+                    let value: serde_json::Value =
+                        serde_json::from_str(&line).map_err(|e| FormatError::Serde(Box::new(e)))?;
+                    Ok(value)
+                });
+
+                Box::new(iter) as Box<dyn Iterator<Item = Result<serde_json::Value, FormatError>>>
+            });
+
+        sync_registry.register_custom(fmt);
+
+        // Async registry must know about the custom format kind for resolution.
+        let mut async_registry = default_async_registry();
+        async_registry.register(FormatKind::Custom("ndjson"));
+
+        let id = path.to_string_lossy().to_string();
+        let spec = AsyncInputSpec::new(id, Arc::new(AsyncFileInput::new(path.clone())))
+            .with_format(FormatKind::Custom("ndjson"))
+            .with_candidates(vec![FormatKind::Custom("ndjson")]);
+
+        let outputs: Vec<crate::config::AsyncOutputSpec> = Vec::new();
+        let engine = AsyncIoEngine::new_with_sync_registry(
+            async_registry,
+            sync_registry,
+            ErrorPolicy::Accumulate,
+            vec![spec],
+            outputs,
+        );
+
+        let results: Vec<Result<StreamConfig, crate::error::SingleIoError>> =
+            engine.read_records_async::<StreamConfig>(1).collect().await;
+
+        assert_eq!(results.len(), 2);
+
+        let rows: Vec<StreamConfig> = results
+            .into_iter()
+            .map(|r| r.expect("expected Ok rows"))
+            .collect();
+
+        assert_eq!(rows[0].name, "foo");
+        assert_eq!(rows[0].value, 1);
+        assert_eq!(rows[1].name, "bar");
+        assert_eq!(rows[1].value, 2);
     }
 }

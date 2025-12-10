@@ -6,11 +6,12 @@ use tokio::io::AsyncReadExt;
 
 use crate::config::{AsyncInputSpec, AsyncOutputSpec, FileExistsPolicy};
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
-use crate::format::{self, AsyncFormatRegistry, FormatKind};
+use crate::format::{self, AsyncFormatRegistry, FormatKind, FormatRegistry};
 
 /// Asynchronous I/O engine for orchestrating multi-input/multi-output operations.
 pub struct AsyncIoEngine {
     registry: AsyncFormatRegistry,
+    sync_registry: Option<FormatRegistry>,
     error_policy: ErrorPolicy,
     inputs: Vec<AsyncInputSpec>,
     outputs: Vec<AsyncOutputSpec>,
@@ -26,6 +27,28 @@ impl AsyncIoEngine {
     ) -> Self {
         Self {
             registry,
+            sync_registry: None,
+            error_policy,
+            inputs,
+            outputs,
+        }
+    }
+
+    /// Create a new async I/O engine with an associated sync FormatRegistry.
+    ///
+    /// The sync registry can be used to resolve and stream custom formats (and
+    /// also built-in formats) while the async registry continues to be used
+    /// for feature gating and extension inference.
+    pub fn new_with_sync_registry(
+        registry: AsyncFormatRegistry,
+        sync_registry: FormatRegistry,
+        error_policy: ErrorPolicy,
+        inputs: Vec<AsyncInputSpec>,
+        outputs: Vec<AsyncOutputSpec>,
+    ) -> Self {
+        Self {
+            registry,
+            sync_registry: Some(sync_registry),
             error_policy,
             inputs,
             outputs,
@@ -338,22 +361,38 @@ impl AsyncIoEngine {
             return stream::iter(std::iter::once(Err(err))).boxed();
         }
 
-        // Resolve the format using the async registry. Resolution
+        // Resolve the format. If a sync registry is available we use it so
+        // that custom formats (and their streaming handlers) participate in
+        // resolution; otherwise we fall back to the async registry. Resolution
         // failures are treated as parse-stage errors, mirroring the sync
-        // `read_records` behavior where resolution happens inside the
-        // format registry.
-        let kind = match self
-            .registry
-            .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
-        {
-            Ok(k) => k,
-            Err(e) => {
-                let err = SingleIoError {
-                    stage: Stage::Parse,
-                    target: spec.raw.clone(),
-                    error: Box::new(e),
-                };
-                return stream::iter(std::iter::once(Err(err))).boxed();
+        // `read_records` behavior where resolution happens inside the format
+        // registry.
+        let kind = if let Some(sync_registry) = &self.sync_registry {
+            match sync_registry.resolve(spec.explicit_format.as_ref(), &spec.format_candidates) {
+                Ok(k) => k,
+                Err(e) => {
+                    let err = SingleIoError {
+                        stage: Stage::Parse,
+                        target: spec.raw.clone(),
+                        error: Box::new(e),
+                    };
+                    return stream::iter(std::iter::once(Err(err))).boxed();
+                }
+            }
+        } else {
+            match self
+                .registry
+                .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
+            {
+                Ok(k) => k,
+                Err(e) => {
+                    let err = SingleIoError {
+                        stage: Stage::Parse,
+                        target: spec.raw.clone(),
+                        error: Box::new(e),
+                    };
+                    return stream::iter(std::iter::once(Err(err))).boxed();
+                }
             }
         };
 
@@ -376,6 +415,36 @@ impl AsyncIoEngine {
                 };
                 return stream::iter(std::iter::once(Err(err))).boxed();
             }
+        }
+
+        // If we have a sync registry and the resolved kind is a custom format,
+        // bridge to the sync FormatRegistry's streaming implementation. This
+        // supports custom streaming handlers and falls back to non-streaming
+        // single-item deserialization when no streaming handler is registered.
+        if let (Some(sync_registry), FormatKind::Custom(_)) = (&self.sync_registry, kind) {
+            use std::io::Cursor;
+
+            let reader: Box<dyn std::io::Read> = Box::new(Cursor::new(buffer));
+            let iter_result = sync_registry.stream_deserialize_into::<T>(Some(&kind), &[], reader);
+
+            let target_for_stream = target.clone();
+
+            let iter = match iter_result {
+                Ok(iter) => iter,
+                Err(e) => {
+                    let err = SingleIoError {
+                        stage: Stage::Parse,
+                        target,
+                        error: Box::new(e),
+                    };
+                    return stream::iter(std::iter::once(Err(err))).boxed();
+                }
+            };
+
+            // The returned iterator may not be Send; collect into a Vec before
+            // turning it into a stream so that the resulting iterator is Send.
+            let collected: Vec<Result<T, format::FormatError>> = iter.collect();
+            return Self::iter_to_stream(collected.into_iter(), target_for_stream);
         }
 
         if let FormatKind::Csv = kind {
