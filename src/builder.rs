@@ -115,7 +115,6 @@ impl MultiioBuilder {
         ))
     }
 
-    /// Resolve input arguments into InputSpecs.
     fn resolve_inputs(&self) -> Result<Vec<InputSpec>, AggregateError> {
         let mut specs = Vec::with_capacity(self.input_args.len());
         let mut errors = Vec::new();
@@ -139,7 +138,6 @@ impl MultiioBuilder {
         }
     }
 
-    /// Resolve a single input argument into an InputSpec.
     fn resolve_single_input(&self, raw: &str) -> Result<InputSpec, SingleIoError> {
         if raw == "-" {
             return Ok(InputSpec {
@@ -163,7 +161,6 @@ impl MultiioBuilder {
         })
     }
 
-    /// Resolve output arguments into OutputSpecs.
     fn resolve_outputs(&self) -> Result<Vec<OutputSpec>, AggregateError> {
         let mut specs = Vec::with_capacity(self.output_args.len());
         let mut errors = Vec::new();
@@ -187,7 +184,6 @@ impl MultiioBuilder {
         }
     }
 
-    /// Resolve a single output argument into an OutputSpec.
     fn resolve_single_output(&self, raw: &str) -> Result<OutputSpec, SingleIoError> {
         if raw == "-" {
             return Ok(OutputSpec {
@@ -221,14 +217,12 @@ impl MultiioBuilder {
             .and_then(|ext| self.registry.kind_for_extension(ext))
     }
 
-    /// Create a builder from a pipeline configuration.
     pub fn from_pipeline_config(
         config: PipelineConfig,
         registry: FormatRegistry,
     ) -> Result<Self, AggregateError> {
         let mut builder = MultiioBuilder::new(registry);
 
-        // Set error policy
         if let Some(policy_str) = config.error_policy.as_deref() {
             let policy = match policy_str {
                 "fast_fail" | "fastfail" => ErrorPolicy::FastFail,
@@ -237,7 +231,6 @@ impl MultiioBuilder {
             builder = builder.with_mode(policy);
         }
 
-        // Set format order
         if let Some(order) = config.format_order.as_ref() {
             let kinds: Vec<FormatKind> = order
                 .iter()
@@ -246,7 +239,6 @@ impl MultiioBuilder {
             builder = builder.with_order(&kinds);
         }
 
-        // Process inputs
         let mut errors = Vec::with_capacity(config.inputs.len() + config.outputs.len());
         for input_cfg in config.inputs {
             match builder.input_from_config(&input_cfg) {
@@ -260,7 +252,6 @@ impl MultiioBuilder {
             }
         }
 
-        // Process outputs
         for output_cfg in config.outputs {
             match builder.output_from_config(&output_cfg) {
                 Ok(spec) => builder.output_specs.push(spec),
@@ -280,7 +271,6 @@ impl MultiioBuilder {
         Ok(builder)
     }
 
-    /// Create an InputSpec from an InputConfig.
     fn input_from_config(&self, cfg: &InputConfig) -> Result<InputSpec, SingleIoError> {
         let provider: Arc<dyn InputProvider> = match cfg.kind.as_str() {
             "stdin" | "-" => Arc::new(StdinInput::new()),
@@ -320,7 +310,6 @@ impl MultiioBuilder {
         })
     }
 
-    /// Create an OutputSpec from an OutputConfig.
     fn output_from_config(&self, cfg: &OutputConfig) -> Result<OutputSpec, SingleIoError> {
         let target: Arc<dyn OutputTarget> = match cfg.kind.as_str() {
             "stdout" | "-" => Arc::new(StdoutOutput::new()),

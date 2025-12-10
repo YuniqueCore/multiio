@@ -192,7 +192,6 @@ impl AsyncIoEngine {
         }
     }
 
-    /// Write values to all outputs asynchronously.
     pub async fn write_all<T>(&self, values: &[T]) -> Result<(), AggregateError>
     where
         T: Serialize + Sync,
@@ -215,7 +214,6 @@ impl AsyncIoEngine {
         }
     }
 
-    /// Write a single value to all outputs.
     pub async fn write_one_value<T>(&self, value: &T) -> Result<(), AggregateError>
     where
         T: Serialize + Sync,
@@ -238,7 +236,6 @@ impl AsyncIoEngine {
         }
     }
 
-    /// Write values to a single output.
     async fn write_one<T>(&self, spec: &AsyncOutputSpec, values: &[T]) -> Result<(), SingleIoError>
     where
         T: Serialize + Sync,
@@ -293,7 +290,6 @@ impl AsyncIoEngine {
             })
     }
 
-    /// Write a single value to a specific output.
     async fn write_single<T>(&self, spec: &AsyncOutputSpec, value: &T) -> Result<(), SingleIoError>
     where
         T: Serialize + Sync,
@@ -357,7 +353,6 @@ impl AsyncIoEngine {
             })
     }
 
-    /// Open an output based on the file exists policy.
     async fn open_output(
         &self,
         spec: &AsyncOutputSpec,
@@ -385,12 +380,6 @@ impl AsyncIoEngine {
             })
     }
 
-    /// Create a per-input stream of records for the given spec.
-    ///
-    /// This helper reads the entire async input into memory and then uses the
-    /// same format-specific streaming helpers as the sync engine where
-    /// possible. It is primarily a convenience wrapper around the synchronous
-    /// streaming deserializers for use in async contexts.
     async fn records_stream_for_spec_async<'a, T>(
         &'a self,
         spec: &'a AsyncInputSpec,

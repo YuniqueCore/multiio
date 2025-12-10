@@ -130,6 +130,30 @@ pub use io::{
     AsyncStdoutOutput,
 };
 
+/// Build a synchronous IoEngine from a PipelineConfig using the default
+/// FormatRegistry.
+pub fn build_engine_from_pipeline(config: PipelineConfig) -> Result<IoEngine, AggregateError> {
+    let registry = format::default_registry();
+    builder::MultiioBuilder::from_pipeline_config(config, registry)?.build()
+}
+
+/// Build a synchronous IoEngine from a PipelineConfig, allowing the caller to
+/// further customize the MultiioBuilder before it is built. This is a natural
+/// hook point for registering custom formats or tweaking options based on the
+/// parsed configuration.
+pub fn build_engine_from_pipeline_with<F>(
+    config: PipelineConfig,
+    customize: F,
+) -> Result<IoEngine, AggregateError>
+where
+    F: FnOnce(builder::MultiioBuilder) -> builder::MultiioBuilder,
+{
+    let registry = format::default_registry();
+    let builder = builder::MultiioBuilder::from_pipeline_config(config, registry)?;
+    let builder = customize(builder);
+    builder.build()
+}
+
 // Miette re-exports
 #[cfg(feature = "miette")]
 pub use error::IoDiagnostic;
