@@ -164,24 +164,52 @@ impl AsyncIoEngine {
                 error: Box::new(e),
             })?;
 
-        // Resolve the format
-        let kind = self
-            .registry
-            .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
-            .map_err(|e| SingleIoError {
-                stage: Stage::ResolveInput,
-                target: spec.raw.clone(),
-                error: Box::new(e),
-            })?;
+        // If a sync registry is available, delegate resolution and
+        // deserialization to it so that custom formats participate fully in
+        // decoding. Otherwise, fall back to the async-format helpers.
+        if let Some(sync_registry) = &self.sync_registry {
+            match sync_registry.deserialize_value::<T>(
+                spec.explicit_format.as_ref(),
+                &spec.format_candidates,
+                buffer,
+            ) {
+                Ok(value) => Ok(value),
+                Err(e) => {
+                    let stage = match e {
+                        format::FormatError::UnknownFormat(_)
+                        | format::FormatError::NoFormatMatched
+                        | format::FormatError::NotEnabled(_) => Stage::ResolveInput,
+                        _ => Stage::Parse,
+                    };
 
-        // Deserialize
-        format::deserialize_async::<T>(kind, buffer)
-            .await
-            .map_err(|e| SingleIoError {
-                stage: Stage::Parse,
-                target: spec.raw.clone(),
-                error: Box::new(e),
-            })
+                    Err(SingleIoError {
+                        stage,
+                        target: spec.raw.clone(),
+                        error: Box::new(e),
+                    })
+                }
+            }
+        } else {
+            // Resolve the format using the async registry and fall back to the
+            // existing async-format helpers.
+            let kind = self
+                .registry
+                .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
+                .map_err(|e| SingleIoError {
+                    stage: Stage::ResolveInput,
+                    target: spec.raw.clone(),
+                    error: Box::new(e),
+                })?;
+
+            // Deserialize
+            format::deserialize_async::<T>(kind, buffer)
+                .await
+                .map_err(|e| SingleIoError {
+                    stage: Stage::Parse,
+                    target: spec.raw.clone(),
+                    error: Box::new(e),
+                })
+        }
     }
 
     /// Write values to all outputs asynchronously.
@@ -235,16 +263,42 @@ impl AsyncIoEngine {
     where
         T: Serialize + Sync,
     {
-        let kind = self.resolve_output_kind(spec)?;
+        // If a sync registry is available, delegate resolution and
+        // serialization to it so that custom formats participate fully in
+        // encoding. Otherwise, fall back to the async-format helpers.
+        let bytes = if let Some(sync_registry) = &self.sync_registry {
+            match sync_registry.serialize_value(
+                spec.explicit_format.as_ref(),
+                &spec.format_candidates,
+                &values,
+            ) {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    let stage = match e {
+                        format::FormatError::UnknownFormat(_)
+                        | format::FormatError::NoFormatMatched
+                        | format::FormatError::NotEnabled(_) => Stage::ResolveOutput,
+                        _ => Stage::Serialize,
+                    };
 
-        // Serialize to bytes
-        let bytes = format::serialize_async(kind, &values)
-            .await
-            .map_err(|e| SingleIoError {
-                stage: Stage::Serialize,
-                target: spec.raw.clone(),
-                error: Box::new(e),
-            })?;
+                    return Err(SingleIoError {
+                        stage,
+                        target: spec.raw.clone(),
+                        error: Box::new(e),
+                    });
+                }
+            }
+        } else {
+            let kind = self.resolve_output_kind(spec)?;
+
+            format::serialize_async(kind, &values)
+                .await
+                .map_err(|e| SingleIoError {
+                    stage: Stage::Serialize,
+                    target: spec.raw.clone(),
+                    error: Box::new(e),
+                })?
+        };
 
         // Open the output stream
         let mut writer = self.open_output(spec).await?;
@@ -264,24 +318,51 @@ impl AsyncIoEngine {
     where
         T: Serialize + Sync,
     {
-        // Resolve the format
-        let kind = self
-            .registry
-            .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
-            .map_err(|e| SingleIoError {
-                stage: Stage::ResolveOutput,
-                target: spec.raw.clone(),
-                error: Box::new(e),
-            })?;
+        // If a sync registry is available, delegate resolution and
+        // serialization to it so that custom formats participate fully in
+        // encoding. Otherwise, fall back to the async-format helpers.
+        let bytes = if let Some(sync_registry) = &self.sync_registry {
+            match sync_registry.serialize_value(
+                spec.explicit_format.as_ref(),
+                &spec.format_candidates,
+                value,
+            ) {
+                Ok(bytes) => bytes,
+                Err(e) => {
+                    let stage = match e {
+                        format::FormatError::UnknownFormat(_)
+                        | format::FormatError::NoFormatMatched
+                        | format::FormatError::NotEnabled(_) => Stage::ResolveOutput,
+                        _ => Stage::Serialize,
+                    };
 
-        // Serialize to bytes
-        let bytes = format::serialize_async(kind, value)
-            .await
-            .map_err(|e| SingleIoError {
-                stage: Stage::Serialize,
-                target: spec.raw.clone(),
-                error: Box::new(e),
-            })?;
+                    return Err(SingleIoError {
+                        stage,
+                        target: spec.raw.clone(),
+                        error: Box::new(e),
+                    });
+                }
+            }
+        } else {
+            // Resolve the format
+            let kind = self
+                .registry
+                .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
+                .map_err(|e| SingleIoError {
+                    stage: Stage::ResolveOutput,
+                    target: spec.raw.clone(),
+                    error: Box::new(e),
+                })?;
+
+            // Serialize to bytes
+            format::serialize_async(kind, value)
+                .await
+                .map_err(|e| SingleIoError {
+                    stage: Stage::Serialize,
+                    target: spec.raw.clone(),
+                    error: Box::new(e),
+                })?
+        };
 
         // Open the output stream
         let mut writer = self.open_output(spec).await?;

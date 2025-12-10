@@ -8,7 +8,7 @@ use crate::config::{
 };
 use crate::engine_async::AsyncIoEngine;
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
-use crate::format::{AsyncFormatRegistry, FormatKind};
+use crate::format::{AsyncFormatRegistry, FormatKind, FormatRegistry, default_registry};
 use crate::io::{
     AsyncFileInput, AsyncFileOutput, AsyncInputProvider, AsyncOutputTarget, AsyncStdinInput,
     AsyncStdoutOutput,
@@ -21,6 +21,7 @@ pub struct MultiioAsyncBuilder {
     input_specs: Vec<AsyncInputSpec>,
     output_specs: Vec<AsyncOutputSpec>,
     registry: AsyncFormatRegistry,
+    sync_registry: FormatRegistry,
     error_policy: ErrorPolicy,
     default_input_formats: Vec<FormatKind>,
     default_output_formats: Vec<FormatKind>,
@@ -36,6 +37,7 @@ impl MultiioAsyncBuilder {
             input_specs: Vec::new(),
             output_specs: Vec::new(),
             registry,
+            sync_registry: default_registry(),
             error_policy: ErrorPolicy::Accumulate,
             default_input_formats: vec![FormatKind::Json, FormatKind::Yaml, FormatKind::Plaintext],
             default_output_formats: vec![FormatKind::Json, FormatKind::Yaml, FormatKind::Plaintext],
@@ -107,8 +109,9 @@ impl MultiioAsyncBuilder {
         inputs.extend(self.input_specs);
         outputs.extend(self.output_specs);
 
-        Ok(AsyncIoEngine::new(
+        Ok(AsyncIoEngine::new_with_sync_registry(
             self.registry,
+            self.sync_registry,
             self.error_policy,
             inputs,
             outputs,
