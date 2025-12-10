@@ -244,6 +244,16 @@ pub fn deserialize_from_reader<T: DeserializeOwned>(
     deserialize(kind, &bytes)
 }
 
+/// Stream JSON values from a reader as multiple top-level JSON documents.
+#[cfg(feature = "json")]
+pub fn deserialize_json_stream<T, R>(reader: R) -> impl Iterator<Item = Result<T, FormatError>>
+where
+    T: DeserializeOwned,
+    R: Read,
+{
+    json::stream_deserialize(reader)
+}
+
 /// Stream CSV records from a reader.
 #[cfg(feature = "csv")]
 pub fn deserialize_csv_stream<T, R>(reader: R) -> impl Iterator<Item = Result<T, FormatError>>

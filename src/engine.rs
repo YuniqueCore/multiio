@@ -270,6 +270,19 @@ impl IoEngine {
         self.inputs.iter().map(|spec| self.read_one::<T>(spec))
     }
 
+    /// Stream JSON records from all inputs whose resolved format is JSON.
+    ///
+    /// Each top-level JSON value is deserialized into `T`. Errors are reported per-record
+    /// as `SingleIoError` with appropriate stage and target information.
+    pub fn read_json_records<T>(&self) -> impl Iterator<Item = Result<T, SingleIoError>> + '_
+    where
+        T: DeserializeOwned + 'static,
+    {
+        self.inputs
+            .iter()
+            .flat_map(move |spec| self.json_stream_for_spec::<T>(spec))
+    }
+
     /// Stream CSV records from all inputs whose resolved format is CSV.
     ///
     /// Each CSV record is deserialized into `T`. Errors are reported per-record
@@ -330,6 +343,63 @@ impl IoEngine {
 
         let target = spec.raw.clone();
         let iter = crate::format::deserialize_csv_stream::<T, _>(reader).map(move |res| {
+            res.map_err(|e| SingleIoError {
+                stage: Stage::Parse,
+                target: target.clone(),
+                error: Box::new(e),
+            })
+        });
+
+        Box::new(iter)
+    }
+
+    fn json_stream_for_spec<T>(
+        &self,
+        spec: &InputSpec,
+    ) -> Box<dyn Iterator<Item = Result<T, SingleIoError>> + '_>
+    where
+        T: DeserializeOwned + 'static,
+    {
+        // Resolve format first
+        let kind = match self
+            .registry
+            .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
+        {
+            Ok(k) => k,
+            Err(e) => {
+                let err = SingleIoError {
+                    stage: Stage::ResolveInput,
+                    target: spec.raw.clone(),
+                    error: Box::new(e),
+                };
+                return Box::new(std::iter::once(Err(err)));
+            }
+        };
+
+        if kind != crate::format::FormatKind::Json {
+            let err = SingleIoError {
+                stage: Stage::ResolveInput,
+                target: spec.raw.clone(),
+                error: Box::new(crate::format::FormatError::UnknownFormat(kind)),
+            };
+            return Box::new(std::iter::once(Err(err)));
+        }
+
+        // Open the input
+        let reader = match spec.provider.open() {
+            Ok(r) => r,
+            Err(e) => {
+                let err = SingleIoError {
+                    stage: Stage::Open,
+                    target: spec.raw.clone(),
+                    error: Box::new(e),
+                };
+                return Box::new(std::iter::once(Err(err)));
+            }
+        };
+
+        let target = spec.raw.clone();
+        let iter = crate::format::deserialize_json_stream::<T, _>(reader).map(move |res| {
             res.map_err(|e| SingleIoError {
                 stage: Stage::Parse,
                 target: target.clone(),
