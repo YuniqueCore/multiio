@@ -37,3 +37,31 @@ fn plaintext_stream_via_registry_yields_lines() {
 
     assert_eq!(lines, vec!["one".to_string(), "two".to_string()]);
 }
+
+#[test]
+fn plaintext_stream_empty_input_yields_no_items() {
+    let input = "";
+    let iter = deserialize_plaintext_stream::<String, _>(Cursor::new(input.as_bytes()));
+
+    let lines: Vec<String> = iter.collect::<Result<_, _>>().expect("lines should parse");
+
+    assert!(lines.is_empty());
+}
+
+#[test]
+fn plaintext_stream_via_registry_empty_input_yields_no_items() {
+    let input = "";
+    let registry = default_registry();
+
+    let iter = registry
+        .stream_deserialize_into::<String>(
+            Some(&FormatKind::Plaintext),
+            &[],
+            Box::new(Cursor::new(input.as_bytes())),
+        )
+        .expect("plaintext streaming should be supported");
+
+    let lines: Vec<String> = iter.collect::<Result<_, _>>().expect("lines should parse");
+
+    assert!(lines.is_empty());
+}

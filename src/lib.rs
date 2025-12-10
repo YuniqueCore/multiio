@@ -49,6 +49,46 @@
 //! - `plaintext` - Plaintext format support (enabled by default)
 //! - `async` - Async I/O support with Tokio
 //! - `miette` - Pretty error reporting with miette
+//!
+//! ## Streaming usage & semantics
+//!
+//! multiio provides streaming deserialization for several formats.
+//!
+//! - **Sync streaming helpers** (in `multiio::format`):
+//!   - `deserialize_json_stream` – NDJSON / multi-document JSON (`Read` -> `Iterator`)
+//!   - `deserialize_csv_stream` – row-by-row CSV records
+//!   - `deserialize_yaml_stream` – multi-document YAML
+//!   - `deserialize_plaintext_stream` – line-based plaintext
+//! - **Sync engine streaming**:
+//!   - `IoEngine::read_records<T>()` uses `FormatRegistry::stream_deserialize_into` to
+//!     pick the right streaming implementation (including custom formats). Each record
+//!     is yielded as `Result<T, SingleIoError>`.
+//! - **Memory model (sync)**:
+//!   - Streaming helpers work directly from a `Read` implementation and do not require
+//!     loading the entire input into memory at once, aside from what the underlying
+//!     decoder (e.g. `serde_json`, `csv`, `serde_yaml`) buffers internally.
+//!
+//! - **Async engine streaming**:
+//!   - `AsyncIoEngine::read_records_async<T>(concurrency)` reads each async input into
+//!     a `Vec<u8>` and then reuses the same sync streaming helpers via an in-memory
+//!     cursor. This gives record-level streaming semantics on top of an async source,
+//!     while keeping the implementation simple and predictable.
+//!   - `concurrency` controls how many inputs are processed in parallel; records from
+//!     different inputs may be interleaved in the resulting stream.
+//! - **Memory model (async)**:
+//!   - Because each input is first read into a `Vec<u8>`, the peak memory usage per
+//!     input is still proportional to the full input size. Streaming at the record
+//!     level improves processing behavior, but does not yet provide true incremental
+//!     I/O at the byte level.
+//!
+//! - **YAML async streaming note**:
+//!   - Synchronous YAML streaming (`deserialize_yaml_stream`) yields documents lazily
+//!     from a reader.
+//!   - In the async engine, YAML streaming currently collects all documents from a
+//!     reader into an in-memory `Vec` before exposing them as a record stream. This
+//!     avoids Send-related limitations in the underlying `serde_yaml` streaming
+//!     implementation, at the cost of higher temporary memory usage for very large
+//!     YAML streams.
 
 // Core modules
 pub mod builder;

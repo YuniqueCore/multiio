@@ -252,4 +252,42 @@ mod async_stream {
         assert_eq!(rows[1].name, "bar");
         assert_eq!(rows[1].value, 2);
     }
+
+    #[tokio::test]
+    async fn async_read_records_async_with_concurrency_gt_one() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let mk_spec = |name: &str| {
+            let path = dir.path().join(format!("{name}.jsonl"));
+            let jsonl = format!("{{\"name\":\"{name}\",\"value\":1}}\n");
+            tokio::fs::write(&path, jsonl).await.unwrap();
+
+            let id = path.to_string_lossy().to_string();
+            AsyncInputSpec::new(id, Arc::new(AsyncFileInput::new(path)))
+                .with_format(FormatKind::Json)
+                .with_candidates(vec![FormatKind::Json])
+        };
+
+        let inputs = vec![mk_spec("a"), mk_spec("b"), mk_spec("c")];
+
+        let registry = default_async_registry();
+        let outputs: Vec<crate::config::AsyncOutputSpec> = Vec::new();
+        let engine = AsyncIoEngine::new(registry, ErrorPolicy::Accumulate, inputs, outputs);
+
+        let results: Vec<Result<StreamConfig, crate::error::SingleIoError>> =
+            engine.read_records_async::<StreamConfig>(4).collect().await;
+
+        assert_eq!(results.len(), 3);
+
+        let mut names: Vec<String> = results
+            .into_iter()
+            .map(|r| r.expect("expected Ok rows").name)
+            .collect();
+        names.sort();
+
+        assert_eq!(
+            names,
+            vec!["a".to_string(), "b".to_string(), "c".to_string()]
+        );
+    }
 }
