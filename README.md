@@ -5,8 +5,9 @@ A unified I/O orchestration library for CLI and server applications in Rust.
 ## Overview
 
 multiio provides a clean abstraction for handling multiple inputs and outputs
-with automatic format detection and conversion. It supports both synchronous and
-asynchronous I/O patterns.
+with automatic format detection and cross-format read/write (for example, JSON
+inputs fanned out to CSV/Markdown/YAML outputs). It supports both synchronous
+and asynchronous I/O patterns.
 
 ### Key Features
 
@@ -14,6 +15,8 @@ asynchronous I/O patterns.
   simultaneously
 - **Format Abstraction**: Built-in support for JSON, YAML, CSV, XML, Markdown,
   and plaintext
+- **Custom Formats**: Register your own formats via `CustomFormat` and
+  `FormatRegistry`, including custom file extensions
 - **Sync and Async**: Both synchronous and asynchronous I/O support
 - **Error Handling**: Configurable error policies (FastFail or Accumulate)
 - **Pipeline Configuration**: Define I/O workflows via YAML/JSON config files
@@ -68,6 +71,13 @@ multiio = { version = "0.1", features = ["async"] }
 
 ```rust
 use multiio::{default_async_registry, ErrorPolicy, MultiioAsyncBuilder};
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Deserialize, Serialize)]
+struct Config {
+    name: String,
+    value: i32,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -76,6 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let engine = MultiioAsyncBuilder::new(registry)
         .add_input("config.yaml")
         .add_output("output.json")
+        .with_mode(ErrorPolicy::FastFail)
         .build()?;
 
     let configs: Vec<Config> = engine.read_all().await?;
@@ -98,6 +109,73 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `async`     | Async I/O with Tokio     |         |
 | `miette`    | Pretty error reporting   |         |
 | `full`      | All features             |         |
+
+## Custom formats
+
+multiio allows you to register your own formats using `CustomFormat` and
+`FormatRegistry`. Custom formats use `serde_json::Value` as an intermediate
+representation so they can participate in the normal `read_all`/`write_all`
+pipeline alongside the built-in formats.
+
+```rust
+use multiio::format::{CustomFormat, FormatError, FormatRegistry};
+
+let mut registry = FormatRegistry::new();
+
+let bracket = CustomFormat::new("bracket", &["brk"])
+    .with_deserialize(|bytes| {
+        // Very simple example: strip leading/trailing brackets and parse JSON
+        let s = String::from_utf8_lossy(bytes);
+        let inner = s.trim_start_matches('[').trim_end_matches(']');
+        serde_json::from_str(inner).map_err(|e| FormatError::Serde(Box::new(e)))
+    })
+    .with_serialize(|value| {
+        let json = serde_json::to_string(value).map_err(|e| FormatError::Serde(Box::new(e)))?;
+        Ok(format!("[{json}]" ).into_bytes())
+    });
+
+registry.register_custom(bracket);
+```
+
+Custom formats can then be selected via `FormatKind::Custom("bracket")` or by
+registering file extensions (such as `".brk"`) and letting the registry infer
+the format from the path.
+
+## Pipeline configuration (YAML)
+
+In addition to building engines programmatically, you can drive multiio from a
+YAML pipeline configuration. This is useful for CLIs or tools that need
+configurable I/O workflows.
+
+```yaml
+inputs:
+  - id: in
+    kind: file
+    path: input.json
+    format: json
+outputs:
+  - id: out
+    kind: file
+    path: output.yaml
+    format: yaml
+error_policy: fast_fail
+format_order: ["json", "yaml", "plaintext"]
+```
+
+```rust
+use multiio::{default_registry, MultiioBuilder, PipelineConfig};
+
+let yaml = std::fs::read_to_string("pipeline.yaml")?;
+let pipeline: PipelineConfig = serde_yaml::from_str(&yaml)?;
+
+let registry = default_registry();
+let builder = MultiioBuilder::from_pipeline_config(pipeline, registry)?;
+let engine = builder.build()?;
+
+// Use the engine as usual
+let values: Vec<serde_json::Value> = engine.read_all()?;
+engine.write_all(&values)?;
+```
 
 ## Architecture
 
