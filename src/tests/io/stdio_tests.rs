@@ -1,5 +1,3 @@
-//! Tests for standard IO providers.
-
 use crate::{FileInput, FileOutput, InputProvider, OutputTarget};
 use std::fs;
 use std::io::Read;

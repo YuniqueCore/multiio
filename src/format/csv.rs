@@ -23,10 +23,16 @@ pub(crate) fn deserialize<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, Format
             let mut obj = serde_json::Map::new();
             for (i, field) in record.iter().enumerate() {
                 if let Some(header) = headers.get(i) {
-                    obj.insert(
-                        (*header).to_string(),
-                        serde_json::Value::String(field.to_string()),
-                    );
+                    let v_str = field.to_string();
+                    // Try to infer numeric fields so that structs with integer
+                    // fields can be deserialized naturally.
+                    let value = if let Ok(n) = v_str.parse::<i64>() {
+                        serde_json::Value::Number(serde_json::Number::from(n))
+                    } else {
+                        serde_json::Value::String(v_str)
+                    };
+
+                    obj.insert((*header).to_string(), value);
                 }
             }
             serde_json::Value::Object(obj)
@@ -44,26 +50,41 @@ pub(crate) fn serialize<T: Serialize>(value: &T) -> Result<Vec<u8>, FormatError>
 
     match json_value {
         serde_json::Value::Array(arr) => {
-            if let Some(first) = arr.first()
-                && let serde_json::Value::Object(obj) = first
-            {
-                let headers: Vec<&str> = obj.keys().map(|s| s.as_str()).collect();
-                wtr.write_record(&headers)
-                    .map_err(|e| FormatError::Serde(Box::new(e)))?;
+            if let Some(first) = arr.first() {
+                if let serde_json::Value::Object(obj) = first {
+                    let headers: Vec<&str> = obj.keys().map(|s| s.as_str()).collect();
+                    wtr.write_record(&headers)
+                        .map_err(|e| FormatError::Serde(Box::new(e)))?;
+                } else {
+                    // Top-level array must contain objects; otherwise we don't
+                    // know how to build the header/records.
+                    return Err(FormatError::Other(Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "CSV format requires array of objects or single object",
+                    ))));
+                }
             }
 
             for item in arr {
-                if let serde_json::Value::Object(obj) = item {
-                    let record: Vec<String> = obj
-                        .values()
-                        .map(|v| match v {
-                            serde_json::Value::String(s) => s.clone(),
-                            _ => v.to_string(),
-                        })
-                        .collect();
-                    wtr.write_record(&record)
-                        .map_err(|e| FormatError::Serde(Box::new(e)))?;
-                }
+                let obj = match item {
+                    serde_json::Value::Object(obj) => obj,
+                    _ => {
+                        return Err(FormatError::Other(Box::new(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "CSV format requires array of objects or single object",
+                        ))));
+                    }
+                };
+
+                let record: Vec<String> = obj
+                    .values()
+                    .map(|v| match v {
+                        serde_json::Value::String(s) => s.clone(),
+                        _ => v.to_string(),
+                    })
+                    .collect();
+                wtr.write_record(&record)
+                    .map_err(|e| FormatError::Serde(Box::new(e)))?;
             }
         }
         serde_json::Value::Object(obj) => {
