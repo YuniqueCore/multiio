@@ -6,7 +6,7 @@
 //! - `FormatRegistry`: Registry managing formats by kind
 //! - `CustomFormat`: Support for user-defined custom formats
 
-use std::io::{Read, Write};
+use std::io::Read;
 
 mod custom;
 pub use custom::CustomFormat;
@@ -264,21 +264,30 @@ where
     csv::stream_deserialize(reader)
 }
 
-/// Serialize to a writer using the specified format.
-pub fn serialize_to_writer<T: Serialize>(
-    kind: FormatKind,
-    value: &T,
-    writer: &mut dyn Write,
-) -> Result<(), FormatError> {
-    let bytes = serialize(kind, value)?;
-    writer.write_all(&bytes)?;
-    Ok(())
+/// Stream YAML documents from a reader.
+#[cfg(feature = "yaml")]
+pub fn deserialize_yaml_stream<T, R>(reader: R) -> impl Iterator<Item = Result<T, FormatError>>
+where
+    T: DeserializeOwned,
+    R: Read + 'static,
+{
+    yaml::stream_deserialize(reader)
 }
 
-/// Registry for managing available formats, including custom formats.
-#[derive(Debug, Clone, Default)]
+/// Stream plaintext records (typically lines) from a reader.
+#[cfg(feature = "plaintext")]
+pub fn deserialize_plaintext_stream<T, R>(reader: R) -> impl Iterator<Item = Result<T, FormatError>>
+where
+    T: DeserializeOwned,
+    R: Read,
+{
+    plaintext::stream_deserialize(reader)
+}
+
+/// Format registry.
+#[derive(Default)]
 pub struct FormatRegistry {
-    /// Built-in format kinds
+    /// Registered built-in formats.
     formats: Vec<FormatKind>,
     /// Custom format handlers
     custom_formats: Vec<CustomFormat>,
@@ -450,6 +459,101 @@ impl FormatRegistry {
 
         // Handle built-in formats
         serialize(kind, value)
+    }
+
+    /// Stream-deserialize values into `T` using this registry.
+    ///
+    /// For built-in JSON/CSV formats, this uses native streaming decoders.
+    /// For custom formats, if a streaming handler is provided it will be used.
+    /// Otherwise, falls back to non-streaming deserialization as a single item.
+    pub fn stream_deserialize_into<T>(
+        &self,
+        explicit: Option<&FormatKind>,
+        candidates: &[FormatKind],
+        reader: Box<dyn Read>,
+    ) -> Result<Box<dyn Iterator<Item = Result<T, FormatError>>>, FormatError>
+    where
+        T: DeserializeOwned + 'static,
+    {
+        let kind = self.resolve(explicit, candidates)?;
+
+        if let FormatKind::Json = kind {
+            #[cfg(feature = "json")]
+            {
+                let iter = crate::format::deserialize_json_stream::<T, _>(reader);
+                return Ok(Box::new(iter));
+            }
+            #[cfg(not(feature = "json"))]
+            {
+                return Err(FormatError::NotEnabled(kind));
+            }
+        }
+
+        if let FormatKind::Csv = kind {
+            #[cfg(feature = "csv")]
+            {
+                let iter = crate::format::deserialize_csv_stream::<T, _>(reader);
+                return Ok(Box::new(iter));
+            }
+            #[cfg(not(feature = "csv"))]
+            {
+                return Err(FormatError::NotEnabled(kind));
+            }
+        }
+
+        if let FormatKind::Yaml = kind {
+            #[cfg(feature = "yaml")]
+            {
+                let iter = crate::format::deserialize_yaml_stream::<T, _>(reader);
+                return Ok(Box::new(iter));
+            }
+            #[cfg(not(feature = "yaml"))]
+            {
+                return Err(FormatError::NotEnabled(kind));
+            }
+        }
+
+        if let FormatKind::Plaintext = kind {
+            #[cfg(feature = "plaintext")]
+            {
+                let iter = crate::format::deserialize_plaintext_stream::<T, _>(reader);
+                return Ok(Box::new(iter));
+            }
+            #[cfg(not(feature = "plaintext"))]
+            {
+                return Err(FormatError::NotEnabled(kind));
+            }
+        }
+
+        if let FormatKind::Custom(name) = kind {
+            let custom = self
+                .get_custom(name)
+                .ok_or_else(|| FormatError::UnknownFormat(kind))?;
+
+            if custom.stream_deserialize_fn.is_some() {
+                let iter = custom.stream_deserialize_values(reader)?.map(|res| {
+                    res.and_then(|value| {
+                        serde_json::from_value::<T>(value)
+                            .map_err(|e| FormatError::Serde(Box::new(e)))
+                    })
+                });
+                return Ok(Box::new(iter));
+            } else {
+                // Fallback: non-streaming, single item
+                let mut r = reader;
+                let mut bytes = Vec::new();
+                r.read_to_end(&mut bytes)?;
+                let value = custom.deserialize::<T>(&bytes)?;
+                return Ok(Box::new(std::iter::once(Ok(value))));
+            }
+        }
+
+        // Other built-in formats: fallback to non-streaming, single item
+        let mut r = reader;
+        let mut bytes = Vec::new();
+        r.read_to_end(&mut bytes)?;
+        let value = deserialize::<T>(kind, &bytes)?;
+        Ok(Box::new(std::iter::once(Ok(value))))
     }
 }
 

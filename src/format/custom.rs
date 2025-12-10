@@ -3,6 +3,7 @@
 //! This module allows developers to register their own format implementations
 //! without modifying the core library.
 
+use std::io::Read;
 use std::sync::Arc;
 
 use serde::{Serialize, de::DeserializeOwned};
@@ -42,6 +43,15 @@ pub type SerializeFn =
 ///
 /// registry.register_custom(toml_format);
 /// ```
+/// Type alias for custom streaming deserialize function.
+///
+/// Takes ownership of a reader and yields a stream of `serde_json::Value` items.
+pub type StreamDeserializeFn = Arc<
+    dyn Fn(Box<dyn Read>) -> Box<dyn Iterator<Item = Result<serde_json::Value, FormatError>>>
+        + Send
+        + Sync,
+>;
+
 #[derive(Clone)]
 pub struct CustomFormat {
     /// Unique name for this format
@@ -52,6 +62,8 @@ pub struct CustomFormat {
     pub deserialize_fn: Option<DeserializeFn>,
     /// Serialize function
     pub serialize_fn: Option<SerializeFn>,
+    /// Optional streaming deserialize function for multi-record inputs
+    pub stream_deserialize_fn: Option<StreamDeserializeFn>,
 }
 
 impl std::fmt::Debug for CustomFormat {
@@ -73,6 +85,7 @@ impl CustomFormat {
             extensions,
             deserialize_fn: None,
             serialize_fn: None,
+            stream_deserialize_fn: None,
         }
     }
 
@@ -92,6 +105,39 @@ impl CustomFormat {
     {
         self.serialize_fn = Some(Arc::new(f));
         self
+    }
+
+    /// Set the streaming deserialize function.
+    ///
+    /// The function receives a reader and should produce an iterator of
+    /// `serde_json::Value` items representing logical records.
+    pub fn with_stream_deserialize<F>(mut self, f: F) -> Self
+    where
+        F: Fn(Box<dyn Read>) -> Box<dyn Iterator<Item = Result<serde_json::Value, FormatError>>>
+            + Send
+            + Sync
+            + 'static,
+    {
+        self.stream_deserialize_fn = Some(Arc::new(f));
+        self
+    }
+
+    /// Stream-deserialize values from a reader as `serde_json::Value` items.
+    pub fn stream_deserialize_values(
+        &self,
+        reader: Box<dyn Read>,
+    ) -> Result<Box<dyn Iterator<Item = Result<serde_json::Value, FormatError>>>, FormatError> {
+        let f = self.stream_deserialize_fn.as_ref().ok_or_else(|| {
+            FormatError::Other(Box::new(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                format!(
+                    "Custom format '{}' does not support streaming deserialization",
+                    self.name
+                ),
+            )))
+        })?;
+
+        Ok(f(reader))
     }
 
     /// Deserialize bytes to a typed value.

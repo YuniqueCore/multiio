@@ -270,6 +270,21 @@ impl IoEngine {
         self.inputs.iter().map(|spec| self.read_one::<T>(spec))
     }
 
+    /// Stream records from all inputs using their resolved formats.
+    ///
+    /// This uses format-specific streaming implementations when available
+    /// (e.g. JSON NDJSON, CSV rows, custom streaming handlers), and falls
+    /// back to non-streaming deserialization as a single item for formats
+    /// that do not support multi-record streaming.
+    pub fn read_records<T>(&self) -> impl Iterator<Item = Result<T, SingleIoError>> + '_
+    where
+        T: DeserializeOwned + 'static,
+    {
+        self.inputs
+            .iter()
+            .flat_map(move |spec| self.records_stream_for_spec::<T>(spec))
+    }
+
     /// Stream JSON records from all inputs whose resolved format is JSON.
     ///
     /// Each top-level JSON value is deserialized into `T`. Errors are reported per-record
@@ -351,6 +366,56 @@ impl IoEngine {
         });
 
         Box::new(iter)
+    }
+
+    fn records_stream_for_spec<T>(
+        &self,
+        spec: &InputSpec,
+    ) -> Box<dyn Iterator<Item = Result<T, SingleIoError>> + '_>
+    where
+        T: DeserializeOwned + 'static,
+    {
+        // Open the input
+        let reader = match spec.provider.open() {
+            Ok(r) => r,
+            Err(e) => {
+                let err = SingleIoError {
+                    stage: Stage::Open,
+                    target: spec.raw.clone(),
+                    error: Box::new(e),
+                };
+                return Box::new(std::iter::once(Err(err)));
+            }
+        };
+
+        let target = spec.raw.clone();
+        let iter_result = self.registry.stream_deserialize_into::<T>(
+            spec.explicit_format.as_ref(),
+            &spec.format_candidates,
+            Box::new(reader),
+        );
+
+        let iter = match iter_result {
+            Ok(iter) => iter,
+            Err(e) => {
+                let err = SingleIoError {
+                    stage: Stage::Parse,
+                    target: target.clone(),
+                    error: Box::new(e),
+                };
+                return Box::new(std::iter::once(Err(err)));
+            }
+        };
+
+        let mapped = iter.map(move |res| {
+            res.map_err(|e| SingleIoError {
+                stage: Stage::Parse,
+                target: target.clone(),
+                error: Box::new(e),
+            })
+        });
+
+        Box::new(mapped)
     }
 
     fn json_stream_for_spec<T>(

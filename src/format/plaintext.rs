@@ -1,22 +1,42 @@
 //! Plaintext format implementation.
 
+use std::io::Read;
+
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::FormatError;
 
-pub(crate) fn deserialize<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, FormatError> {
-    let s = String::from_utf8_lossy(bytes);
-
+fn decode_from_string<T: DeserializeOwned>(s: String) -> Result<T, FormatError> {
     // Try JSON first if available
     #[cfg(feature = "json")]
-    if let Ok(v) = serde_json::from_str(&s) {
-        return Ok(v);
+    {
+        if let Ok(v) = serde_json::from_str(&s) {
+            return Ok(v);
+        }
     }
 
     // Fall back to string deserializer
-    let deserializer =
-        serde::de::value::StringDeserializer::<serde::de::value::Error>::new(s.into_owned());
+    let deserializer = serde::de::value::StringDeserializer::<serde::de::value::Error>::new(s);
     T::deserialize(deserializer).map_err(|e| FormatError::Serde(Box::new(e)))
+}
+
+pub(crate) fn deserialize<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, FormatError> {
+    let s = String::from_utf8_lossy(bytes).into_owned();
+    decode_from_string(s)
+}
+
+pub(crate) fn stream_deserialize<T, R>(reader: R) -> impl Iterator<Item = Result<T, FormatError>>
+where
+    T: DeserializeOwned,
+    R: Read,
+{
+    use std::io::{BufRead, BufReader};
+
+    let buf = BufReader::new(reader);
+    buf.lines().map(|res| match res {
+        Ok(line) => decode_from_string(line),
+        Err(e) => Err(FormatError::Io(e)),
+    })
 }
 
 pub(crate) fn serialize<T: Serialize>(value: &T) -> Result<Vec<u8>, FormatError> {
