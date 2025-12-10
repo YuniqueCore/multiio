@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use tokio::fs::OpenOptions;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, BufReader, BufWriter};
 
 use super::{AsyncInputProvider, AsyncOutputTarget};
 
@@ -34,7 +34,7 @@ impl AsyncInputProvider for AsyncStdinInput {
     }
 
     async fn open(&self) -> std::io::Result<Box<dyn AsyncRead + Unpin + Send>> {
-        Ok(Box::new(tokio::io::stdin()))
+        Ok(Box::new(BufReader::new(tokio::io::stdin())))
     }
 }
 
@@ -66,7 +66,7 @@ impl AsyncInputProvider for AsyncFileInput {
 
     async fn open(&self) -> std::io::Result<Box<dyn AsyncRead + Unpin + Send>> {
         let file = tokio::fs::File::open(&self.path).await?;
-        Ok(Box::new(file))
+        Ok(Box::new(BufReader::new(file)))
     }
 }
 
@@ -96,11 +96,11 @@ impl AsyncOutputTarget for AsyncStdoutOutput {
     }
 
     async fn open_overwrite(&self) -> std::io::Result<Box<dyn AsyncWrite + Unpin + Send>> {
-        Ok(Box::new(tokio::io::stdout()))
+        Ok(Box::new(BufWriter::new(tokio::io::stdout())))
     }
 
     async fn open_append(&self) -> std::io::Result<Box<dyn AsyncWrite + Unpin + Send>> {
-        Ok(Box::new(tokio::io::stdout()))
+        Ok(Box::new(BufWriter::new(tokio::io::stdout())))
     }
 }
 

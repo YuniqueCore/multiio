@@ -1,7 +1,7 @@
 //! Standard I/O implementations for files and stdin/stdout.
 
 use std::fs::OpenOptions;
-use std::io::{self, Read, Write};
+use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::path::PathBuf;
 
 use super::{InputProvider, OutputTarget};
@@ -31,7 +31,8 @@ impl InputProvider for StdinInput {
     }
 
     fn open(&self) -> io::Result<Box<dyn Read + Send>> {
-        Ok(Box::new(io::stdin()))
+        let stdin = io::stdin();
+        Ok(Box::new(BufReader::new(stdin)))
     }
 }
 
@@ -62,7 +63,7 @@ impl InputProvider for FileInput {
 
     fn open(&self) -> io::Result<Box<dyn Read + Send>> {
         let file = std::fs::File::open(&self.path)?;
-        Ok(Box::new(file))
+        Ok(Box::new(BufReader::new(file)))
     }
 }
 
@@ -91,11 +92,13 @@ impl OutputTarget for StdoutOutput {
     }
 
     fn open_overwrite(&self) -> io::Result<Box<dyn Write + Send>> {
-        Ok(Box::new(io::stdout()))
+        let stdout = io::stdout();
+        Ok(Box::new(BufWriter::new(stdout)))
     }
 
     fn open_append(&self) -> io::Result<Box<dyn Write + Send>> {
-        Ok(Box::new(io::stdout()))
+        let stdout = io::stdout();
+        Ok(Box::new(BufWriter::new(stdout)))
     }
 }
 
@@ -126,11 +129,13 @@ impl OutputTarget for StderrOutput {
     }
 
     fn open_overwrite(&self) -> io::Result<Box<dyn Write + Send>> {
-        Ok(Box::new(io::stderr()))
+        let stderr = io::stderr();
+        Ok(Box::new(BufWriter::new(stderr)))
     }
 
     fn open_append(&self) -> io::Result<Box<dyn Write + Send>> {
-        Ok(Box::new(io::stderr()))
+        let stderr = io::stderr();
+        Ok(Box::new(BufWriter::new(stderr)))
     }
 }
 
@@ -165,7 +170,7 @@ impl OutputTarget for FileOutput {
             .truncate(true)
             .write(true)
             .open(&self.path)?;
-        Ok(Box::new(file))
+        Ok(Box::new(BufWriter::new(file)))
     }
 
     fn open_append(&self) -> io::Result<Box<dyn Write + Send>> {
@@ -173,6 +178,6 @@ impl OutputTarget for FileOutput {
             .create(true)
             .append(true)
             .open(&self.path)?;
-        Ok(Box::new(file))
+        Ok(Box::new(BufWriter::new(file)))
     }
 }
