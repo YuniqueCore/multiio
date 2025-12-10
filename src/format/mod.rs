@@ -75,7 +75,17 @@ impl std::str::FromStr for FormatKind {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let kind = match s.to_ascii_lowercase().as_str() {
+        let lower = s.to_ascii_lowercase();
+
+        if let Some(rest) = lower.strip_prefix("custom:") {
+            // Leak the custom format name into a 'static str so it can live
+            // inside FormatKind::Custom. This is acceptable for configuration-
+            // level strings which are created once per process.
+            let leaked: &'static str = Box::leak(rest.to_string().into_boxed_str());
+            return Ok(FormatKind::Custom(leaked));
+        }
+
+        let kind = match lower.as_str() {
             "plaintext" | "text" | "txt" => FormatKind::Plaintext,
             "json" => FormatKind::Json,
             "yaml" | "yml" => FormatKind::Yaml,

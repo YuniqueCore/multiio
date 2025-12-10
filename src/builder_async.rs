@@ -3,9 +3,11 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::config::{AsyncInputSpec, AsyncOutputSpec, FileExistsPolicy, PipelineConfig};
+use crate::config::{
+    AsyncInputSpec, AsyncOutputSpec, FileExistsPolicy, InputConfig, OutputConfig, PipelineConfig,
+};
 use crate::engine_async::AsyncIoEngine;
-use crate::error::{AggregateError, ErrorPolicy, SingleIoError};
+use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
 use crate::format::{AsyncFormatRegistry, FormatKind};
 use crate::io::{
     AsyncFileInput, AsyncFileOutput, AsyncInputProvider, AsyncOutputTarget, AsyncStdinInput,
@@ -244,6 +246,121 @@ impl MultiioAsyncBuilder {
             builder = builder.with_order(&kinds);
         }
 
+        let mut errors = Vec::new();
+
+        for input_cfg in config.inputs {
+            match builder.input_from_config(&input_cfg) {
+                Ok(spec) => builder.input_specs.push(spec),
+                Err(e) => {
+                    errors.push(e);
+                    if matches!(builder.error_policy, ErrorPolicy::FastFail) {
+                        return Err(AggregateError { errors });
+                    }
+                }
+            }
+        }
+
+        for output_cfg in config.outputs {
+            match builder.output_from_config(&output_cfg) {
+                Ok(spec) => builder.output_specs.push(spec),
+                Err(e) => {
+                    errors.push(e);
+                    if matches!(builder.error_policy, ErrorPolicy::FastFail) {
+                        return Err(AggregateError { errors });
+                    }
+                }
+            }
+        }
+
+        if !errors.is_empty() {
+            return Err(AggregateError { errors });
+        }
+
         Ok(builder)
+    }
+
+    fn input_from_config(&self, cfg: &InputConfig) -> Result<AsyncInputSpec, SingleIoError> {
+        let provider: Arc<dyn AsyncInputProvider> = match cfg.kind.as_str() {
+            "stdin" | "-" => Arc::new(AsyncStdinInput::new()),
+            "file" => {
+                let path = cfg.path.as_ref().ok_or_else(|| SingleIoError {
+                    stage: Stage::ResolveInput,
+                    target: cfg.id.clone(),
+                    error: Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "file input requires 'path' field",
+                    )),
+                })?;
+                Arc::new(AsyncFileInput::new(PathBuf::from(path)))
+            }
+            other => {
+                return Err(SingleIoError {
+                    stage: Stage::ResolveInput,
+                    target: cfg.id.clone(),
+                    error: Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        format!("unknown input kind: {}", other),
+                    )),
+                });
+            }
+        };
+
+        let explicit_format = cfg
+            .format
+            .as_ref()
+            .and_then(|s| s.parse::<FormatKind>().ok());
+
+        Ok(AsyncInputSpec {
+            raw: cfg.id.clone(),
+            provider,
+            explicit_format,
+            format_candidates: self.default_input_formats.clone(),
+        })
+    }
+
+    fn output_from_config(&self, cfg: &OutputConfig) -> Result<AsyncOutputSpec, SingleIoError> {
+        let target: Arc<dyn AsyncOutputTarget> = match cfg.kind.as_str() {
+            "stdout" | "-" => Arc::new(AsyncStdoutOutput::new()),
+            "file" => {
+                let path = cfg.path.as_ref().ok_or_else(|| SingleIoError {
+                    stage: Stage::ResolveOutput,
+                    target: cfg.id.clone(),
+                    error: Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "file output requires 'path' field",
+                    )),
+                })?;
+                Arc::new(AsyncFileOutput::new(PathBuf::from(path)))
+            }
+            other => {
+                return Err(SingleIoError {
+                    stage: Stage::ResolveOutput,
+                    target: cfg.id.clone(),
+                    error: Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        format!("unknown output kind: {}", other),
+                    )),
+                });
+            }
+        };
+
+        let explicit_format = cfg
+            .format
+            .as_ref()
+            .and_then(|s| s.parse::<FormatKind>().ok());
+
+        let file_exists_policy = cfg
+            .file_exists_policy
+            .as_ref()
+            .and_then(|s| s.parse::<FileExistsPolicy>().ok())
+            .unwrap_or(self.file_exists_policy);
+
+        Ok(AsyncOutputSpec {
+            raw: cfg.id.clone(),
+            target,
+            explicit_format,
+            format_candidates: self.default_output_formats.clone(),
+            file_exists_policy,
+        })
     }
 }
