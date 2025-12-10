@@ -120,4 +120,136 @@ mod async_stream {
             assert!(e.target.contains("bad1") || e.target.contains("bad2"));
         }
     }
+
+    #[tokio::test]
+    async fn async_read_records_async_streams_json_rows() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let path = dir.path().join("rows.jsonl");
+        let jsonl = "{\"name\":\"foo\",\"value\":1}\n{\"name\":\"bar\",\"value\":2}\n";
+        tokio::fs::write(&path, jsonl).await.unwrap();
+
+        let id = path.to_string_lossy().to_string();
+        let spec = AsyncInputSpec::new(id, Arc::new(AsyncFileInput::new(path.clone())))
+            .with_format(FormatKind::Json)
+            .with_candidates(vec![FormatKind::Json]);
+
+        let registry = default_async_registry();
+        let outputs: Vec<crate::config::AsyncOutputSpec> = Vec::new();
+        let engine = AsyncIoEngine::new(registry, ErrorPolicy::Accumulate, vec![spec], outputs);
+
+        let results: Vec<Result<StreamConfig, crate::error::SingleIoError>> =
+            engine.read_records_async::<StreamConfig>(1).collect().await;
+
+        assert_eq!(results.len(), 2);
+
+        let rows: Vec<StreamConfig> = results
+            .into_iter()
+            .map(|r| r.expect("expected Ok rows"))
+            .collect();
+
+        assert_eq!(rows[0].name, "foo");
+        assert_eq!(rows[0].value, 1);
+        assert_eq!(rows[1].name, "bar");
+        assert_eq!(rows[1].value, 2);
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "csv")]
+    async fn async_read_records_async_streams_csv_rows() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let path = dir.path().join("rows.csv");
+        let csv = "name,value\nfoo,1\nbar,2\n";
+        tokio::fs::write(&path, csv).await.unwrap();
+
+        let id = path.to_string_lossy().to_string();
+        let spec = AsyncInputSpec::new(id, Arc::new(AsyncFileInput::new(path.clone())))
+            .with_format(FormatKind::Csv)
+            .with_candidates(vec![FormatKind::Csv]);
+
+        let registry = default_async_registry();
+        let outputs: Vec<crate::config::AsyncOutputSpec> = Vec::new();
+        let engine = AsyncIoEngine::new(registry, ErrorPolicy::Accumulate, vec![spec], outputs);
+
+        let results: Vec<Result<StreamConfig, crate::error::SingleIoError>> =
+            engine.read_records_async::<StreamConfig>(1).collect().await;
+
+        assert_eq!(results.len(), 2);
+
+        let rows: Vec<StreamConfig> = results
+            .into_iter()
+            .map(|r| r.expect("expected Ok rows"))
+            .collect();
+
+        assert_eq!(rows[0].name, "foo");
+        assert_eq!(rows[0].value, 1);
+        assert_eq!(rows[1].name, "bar");
+        assert_eq!(rows[1].value, 2);
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "plaintext")]
+    async fn async_read_records_async_streams_plaintext_lines() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let path = dir.path().join("lines.txt");
+        let content = "alpha\nbeta\n";
+        tokio::fs::write(&path, content).await.unwrap();
+
+        let id = path.to_string_lossy().to_string();
+        let spec = AsyncInputSpec::new(id, Arc::new(AsyncFileInput::new(path.clone())))
+            .with_format(FormatKind::Plaintext)
+            .with_candidates(vec![FormatKind::Plaintext]);
+
+        let registry = default_async_registry();
+        let outputs: Vec<crate::config::AsyncOutputSpec> = Vec::new();
+        let engine = AsyncIoEngine::new(registry, ErrorPolicy::Accumulate, vec![spec], outputs);
+
+        let results: Vec<Result<String, crate::error::SingleIoError>> =
+            engine.read_records_async::<String>(1).collect().await;
+
+        assert_eq!(results.len(), 2);
+
+        let lines: Vec<String> = results
+            .into_iter()
+            .map(|r| r.expect("expected Ok lines"))
+            .collect();
+
+        assert_eq!(lines, vec!["alpha".to_string(), "beta".to_string()]);
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "yaml")]
+    async fn async_read_records_async_streams_yaml_documents() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let path = dir.path().join("docs.yaml");
+        let yaml = "---\nname: foo\nvalue: 1\n---\nname: bar\nvalue: 2\n";
+        tokio::fs::write(&path, yaml).await.unwrap();
+
+        let id = path.to_string_lossy().to_string();
+        let spec = AsyncInputSpec::new(id, Arc::new(AsyncFileInput::new(path.clone())))
+            .with_format(FormatKind::Yaml)
+            .with_candidates(vec![FormatKind::Yaml]);
+
+        let registry = default_async_registry();
+        let outputs: Vec<crate::config::AsyncOutputSpec> = Vec::new();
+        let engine = AsyncIoEngine::new(registry, ErrorPolicy::Accumulate, vec![spec], outputs);
+
+        let results: Vec<Result<StreamConfig, crate::error::SingleIoError>> =
+            engine.read_records_async::<StreamConfig>(1).collect().await;
+
+        assert_eq!(results.len(), 2);
+
+        let rows: Vec<StreamConfig> = results
+            .into_iter()
+            .map(|r| r.expect("expected Ok documents"))
+            .collect();
+
+        assert_eq!(rows[0].name, "foo");
+        assert_eq!(rows[0].value, 1);
+        assert_eq!(rows[1].name, "bar");
+        assert_eq!(rows[1].value, 2);
+    }
 }

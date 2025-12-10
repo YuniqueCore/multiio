@@ -80,6 +80,32 @@ impl AsyncIoEngine {
         }
     }
 
+    /// Stream records from all inputs using their resolved formats.
+    ///
+    /// This mirrors the synchronous `IoEngine::read_records` API but for async
+    /// inputs. Each input is read asynchronously into memory and then
+    /// deserialized using format-specific streaming implementations when
+    /// available (e.g. JSON NDJSON, CSV rows, YAML multi-doc, plaintext
+    /// line-based). For formats without streaming support this falls back to a
+    /// single-item deserialization.
+    pub fn read_records_async<T>(
+        &self,
+        concurrency: usize,
+    ) -> BoxStream<'_, Result<T, SingleIoError>>
+    where
+        T: DeserializeOwned + Send + 'static,
+    {
+        let futs = self
+            .inputs
+            .iter()
+            .map(|spec| self.records_stream_for_spec_async::<T>(spec));
+
+        stream::iter(futs)
+            .buffer_unordered(concurrency)
+            .flat_map(|s| s)
+            .boxed()
+    }
+
     /// Read a single input asynchronously.
     async fn read_one<T>(&self, spec: &AsyncInputSpec) -> Result<T, SingleIoError>
     where
@@ -273,6 +299,166 @@ impl AsyncIoEngine {
                 target: spec.raw.clone(),
                 error: Box::new(e),
             })
+    }
+
+    /// Create a per-input stream of records for the given spec.
+    ///
+    /// This helper reads the entire async input into memory and then uses the
+    /// same format-specific streaming helpers as the sync engine where
+    /// possible. It is primarily a convenience wrapper around the synchronous
+    /// streaming deserializers for use in async contexts.
+    async fn records_stream_for_spec_async<'a, T>(
+        &'a self,
+        spec: &'a AsyncInputSpec,
+    ) -> BoxStream<'a, Result<T, SingleIoError>>
+    where
+        T: DeserializeOwned + Send + 'static,
+    {
+        // Open the input stream
+        let mut reader = match spec.provider.open().await {
+            Ok(r) => r,
+            Err(e) => {
+                let err = SingleIoError {
+                    stage: Stage::Open,
+                    target: spec.raw.clone(),
+                    error: Box::new(e),
+                };
+                return stream::iter(std::iter::once(Err(err))).boxed();
+            }
+        };
+
+        // Read all bytes into an internal buffer
+        let mut buffer = Vec::new();
+        if let Err(e) = reader.read_to_end(&mut buffer).await {
+            let err = SingleIoError {
+                stage: Stage::Open,
+                target: spec.raw.clone(),
+                error: Box::new(e),
+            };
+            return stream::iter(std::iter::once(Err(err))).boxed();
+        }
+
+        // Resolve the format using the async registry. Resolution
+        // failures are treated as parse-stage errors, mirroring the sync
+        // `read_records` behavior where resolution happens inside the
+        // format registry.
+        let kind = match self
+            .registry
+            .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
+        {
+            Ok(k) => k,
+            Err(e) => {
+                let err = SingleIoError {
+                    stage: Stage::Parse,
+                    target: spec.raw.clone(),
+                    error: Box::new(e),
+                };
+                return stream::iter(std::iter::once(Err(err))).boxed();
+            }
+        };
+
+        let target = spec.raw.clone();
+
+        // Use format-specific streaming helpers where available.
+        if let FormatKind::Json = kind {
+            #[cfg(feature = "json")]
+            {
+                let reader = std::io::Cursor::new(buffer);
+                let iter = crate::format::deserialize_json_stream::<T, _>(reader);
+                return Self::iter_to_stream(iter, target);
+            }
+            #[cfg(not(feature = "json"))]
+            {
+                let err = SingleIoError {
+                    stage: Stage::Parse,
+                    target,
+                    error: Box::new(crate::format::FormatError::NotEnabled(kind)),
+                };
+                return stream::iter(std::iter::once(Err(err))).boxed();
+            }
+        }
+
+        if let FormatKind::Csv = kind {
+            #[cfg(feature = "csv")]
+            {
+                let reader = std::io::Cursor::new(buffer);
+                let iter = crate::format::deserialize_csv_stream::<T, _>(reader);
+                return Self::iter_to_stream(iter, target);
+            }
+            #[cfg(not(feature = "csv"))]
+            {
+                let err = SingleIoError {
+                    stage: Stage::Parse,
+                    target,
+                    error: Box::new(crate::format::FormatError::NotEnabled(kind)),
+                };
+                return stream::iter(std::iter::once(Err(err))).boxed();
+            }
+        }
+
+        if let FormatKind::Yaml = kind {
+            #[cfg(feature = "yaml")]
+            {
+                let reader = std::io::Cursor::new(buffer);
+                let iter = crate::format::deserialize_yaml_stream::<T, _>(reader);
+                let collected: Vec<_> = iter.collect();
+                return Self::iter_to_stream(collected.into_iter(), target);
+            }
+            #[cfg(not(feature = "yaml"))]
+            {
+                let err = SingleIoError {
+                    stage: Stage::Parse,
+                    target,
+                    error: Box::new(crate::format::FormatError::NotEnabled(kind)),
+                };
+                return stream::iter(std::iter::once(Err(err))).boxed();
+            }
+        }
+
+        if let FormatKind::Plaintext = kind {
+            #[cfg(feature = "plaintext")]
+            {
+                let reader = std::io::Cursor::new(buffer);
+                let iter = crate::format::deserialize_plaintext_stream::<T, _>(reader);
+                return Self::iter_to_stream(iter, target);
+            }
+            #[cfg(not(feature = "plaintext"))]
+            {
+                let err = SingleIoError {
+                    stage: Stage::Parse,
+                    target,
+                    error: Box::new(crate::format::FormatError::NotEnabled(kind)),
+                };
+                return stream::iter(std::iter::once(Err(err))).boxed();
+            }
+        }
+
+        // Other formats (including unsupported/custom): fall back to
+        // non-streaming single-item deserialization.
+        let value = format::deserialize_async::<T>(kind, &buffer).await;
+        let result = value.map_err(|e| SingleIoError {
+            stage: Stage::Parse,
+            target,
+            error: Box::new(e),
+        });
+
+        stream::iter(std::iter::once(result)).boxed()
+    }
+
+    fn iter_to_stream<T, I>(iter: I, target: String) -> BoxStream<'static, Result<T, SingleIoError>>
+    where
+        T: DeserializeOwned + Send + 'static,
+        I: Iterator<Item = Result<T, format::FormatError>> + Send + 'static,
+    {
+        let mapped = iter.map(move |res| {
+            res.map_err(|e| SingleIoError {
+                stage: Stage::Parse,
+                target: target.clone(),
+                error: Box::new(e),
+            })
+        });
+
+        stream::iter(mapped).boxed()
     }
 
     /// Create a stream that reads inputs with bounded concurrency.

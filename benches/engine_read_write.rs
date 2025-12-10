@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
-use criterion::{BatchSize, Criterion, black_box, criterion_group, criterion_main};
+use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
 use multiio::{ErrorPolicy, InMemorySink, InMemorySource, IoEngine, default_registry};
 use serde::{Deserialize, Serialize};
+use std::hint::black_box;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Config {
