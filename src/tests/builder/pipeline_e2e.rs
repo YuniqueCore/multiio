@@ -71,6 +71,80 @@ format_order: ["json", "yaml", "plaintext"]
 }
 
 #[test]
+fn pipeline_e2e_multi_input_multi_output_json() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let in_path1 = dir.path().join("input1.json");
+    let in_path2 = dir.path().join("input2.json");
+    let out_path1 = dir.path().join("output1.json");
+    let out_path2 = dir.path().join("output2.json");
+
+    let record1 = ConfigData {
+        name: "a".into(),
+        value: 1,
+    };
+    let record2 = ConfigData {
+        name: "b".into(),
+        value: 2,
+    };
+    write_json_object(&in_path1, &record1);
+    write_json_object(&in_path2, &record2);
+
+    let yaml = format!(
+        r#"
+inputs:
+  - id: in1
+    kind: file
+    path: {}
+    format: json
+  - id: in2
+    kind: file
+    path: {}
+    format: json
+outputs:
+  - id: out1
+    kind: file
+    path: {}
+    format: json
+  - id: out2
+    kind: file
+    path: {}
+    format: json
+error_policy: accumulate
+format_order: ["json", "yaml", "plaintext"]
+"#,
+        in_path1.to_string_lossy(),
+        in_path2.to_string_lossy(),
+        out_path1.to_string_lossy(),
+        out_path2.to_string_lossy(),
+    );
+
+    let pipeline: PipelineConfig = serde_yaml::from_str(&yaml).expect("parse pipeline yaml");
+
+    let registry = default_registry();
+    let builder = MultiioBuilder::from_pipeline_config(pipeline, registry)
+        .expect("from_pipeline_config should succeed");
+
+    let engine = builder
+        .with_mode(ErrorPolicy::Accumulate)
+        .build()
+        .expect("build engine");
+
+    let vals: Vec<ConfigData> = engine.read_all().expect("read_all");
+    assert_eq!(vals.len(), 2);
+    assert_eq!(vals[0], record1);
+    assert_eq!(vals[1], record2);
+
+    engine.write_all(&vals).expect("write_all");
+
+    for out in [&out_path1, &out_path2] {
+        let out_bytes = fs::read(out).expect("read output file");
+        let decoded: Vec<ConfigData> =
+            serde_json::from_slice(&out_bytes).expect("decode output json");
+        assert_eq!(decoded, vals);
+    }
+}
+
+#[test]
 fn pipeline_unknown_input_kind_produces_resolve_error() {
     let yaml = r#"
 inputs:

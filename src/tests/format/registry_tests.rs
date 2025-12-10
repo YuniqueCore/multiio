@@ -53,6 +53,27 @@ fn kind_for_extension_prefers_builtin_and_custom() {
 }
 
 #[test]
+fn kind_for_extension_unknown_returns_none() {
+    let mut registry = FormatRegistry::new();
+    registry.register(FormatKind::Json);
+
+    assert_eq!(registry.kind_for_extension("unknown_ext"), None);
+}
+
+#[test]
+fn resolve_uses_first_registered_candidate() {
+    let mut registry = FormatRegistry::new();
+    registry.register(FormatKind::Json);
+
+    // Yaml is not registered; Json is. Should pick Json as first registered candidate.
+    let kind = registry
+        .resolve(None, &[FormatKind::Yaml, FormatKind::Json])
+        .expect("expected Json to be selected as first registered candidate");
+
+    assert_eq!(kind, FormatKind::Json);
+}
+
+#[test]
 fn deserialize_value_with_missing_custom_format_returns_unknown() {
     let registry = FormatRegistry::new();
     let data = b"{}";

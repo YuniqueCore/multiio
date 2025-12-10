@@ -91,3 +91,54 @@ fn test_custom_format_serialize_deserialize() {
 
     assert_eq!(result, data);
 }
+
+#[test]
+fn custom_format_without_deserialize_errors() {
+    let fmt = CustomFormat::new("no-deser", &["and"]).with_serialize(|value| {
+        serde_json::to_vec(value).map_err(|e| FormatError::Serde(Box::new(e)))
+    });
+
+    let err = fmt
+        .deserialize::<serde_json::Value>(b"{}")
+        .expect_err("expected error when deserializing without handler");
+
+    match err {
+        FormatError::Other(inner) => {
+            let msg = inner.to_string();
+            assert!(
+                msg.contains("does not support deserialization"),
+                "unexpected message: {}",
+                msg
+            );
+        }
+        other => panic!("expected FormatError::Other, got: {other:?}"),
+    }
+}
+
+#[test]
+fn custom_format_without_serialize_errors() {
+    let fmt = CustomFormat::new("no-serial", &["ns"]).with_deserialize(|bytes| {
+        serde_json::from_slice(bytes).map_err(|e| FormatError::Serde(Box::new(e)))
+    });
+
+    let value = TestData {
+        name: "x".to_string(),
+        value: 1,
+    };
+
+    let err = fmt
+        .serialize(&value)
+        .expect_err("expected error when serializing without handler");
+
+    match err {
+        FormatError::Other(inner) => {
+            let msg = inner.to_string();
+            assert!(
+                msg.contains("does not support serialization"),
+                "unexpected message: {}",
+                msg
+            );
+        }
+        other => panic!("expected FormatError::Other, got: {other:?}"),
+    }
+}
