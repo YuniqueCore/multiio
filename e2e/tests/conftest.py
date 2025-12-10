@@ -70,10 +70,13 @@ def run_pipeline(
 
 
 def compare_json_files(actual_path: Path, baseline_path: Path) -> None:
-    """Compare two JSON files for equality."""
+    """Compare two JSON files for equality (ignoring key order in objects)."""
     actual = json.loads(actual_path.read_text(encoding="utf-8"))
     baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
-    assert actual == baseline, f"JSON mismatch: {actual} != {baseline}"
+    # Convert to JSON strings with sorted keys for comparison (ignores key order)
+    actual_str = json.dumps(actual, sort_keys=True)
+    baseline_str = json.dumps(baseline, sort_keys=True)
+    assert actual_str == baseline_str, f"JSON mismatch: {actual} != {baseline}"
 
 
 def compare_text_files(actual_path: Path, baseline_path: Path) -> None:

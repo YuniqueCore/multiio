@@ -28,8 +28,7 @@ format_order: ["json", "yaml"]
         encoding="utf-8",
     )
 
-    # multiio_pipeline reads into Vec<Value> and writes Vec<Value>
-    # so a JSON array input becomes [[...]] output
+    # multiio_pipeline unwraps single-element arrays, so array input stays as array output
     stdin_data = json.dumps([{"msg": "hello"}, {"msg": "world"}])
 
     root = project_root()
@@ -43,9 +42,8 @@ format_order: ["json", "yaml"]
 
     assert result.returncode == 0, f"multiio_pipeline failed: {result.stderr}"
 
-    # Parse stdout as JSON - output is wrapped in an outer array by read_all/write_all
+    # Parse stdout as JSON - output is unwrapped from double-nesting
     output = json.loads(result.stdout)
-    # The input array is treated as a single value, so we get [[...]]
-    expected = [[{"msg": "hello"}, {"msg": "world"}]]
+    expected = [{"msg": "hello"}, {"msg": "world"}]
 
     assert output == expected, f"Unexpected output: {output} != {expected}"
