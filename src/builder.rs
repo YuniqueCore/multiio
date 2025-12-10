@@ -134,7 +134,7 @@ impl MultiioBuilder {
 
     /// Resolve input arguments into InputSpecs.
     fn resolve_inputs(&self) -> Result<Vec<InputSpec>, AggregateError> {
-        let mut specs = Vec::new();
+        let mut specs = Vec::with_capacity(self.input_args.len());
         let mut errors = Vec::new();
 
         for raw in &self.input_args {
@@ -182,7 +182,7 @@ impl MultiioBuilder {
 
     /// Resolve output arguments into OutputSpecs.
     fn resolve_outputs(&self) -> Result<Vec<OutputSpec>, AggregateError> {
-        let mut specs = Vec::new();
+        let mut specs = Vec::with_capacity(self.output_args.len());
         let mut errors = Vec::new();
 
         for raw in &self.output_args {
@@ -264,7 +264,7 @@ impl MultiioBuilder {
         }
 
         // Process inputs
-        let mut errors = Vec::new();
+        let mut errors = Vec::with_capacity(config.inputs.len() + config.outputs.len());
         for input_cfg in config.inputs {
             match builder.input_from_config(&input_cfg) {
                 Ok(spec) => builder.input_specs.push(spec),

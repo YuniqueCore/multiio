@@ -117,7 +117,7 @@ impl MultiioAsyncBuilder {
 
     /// Resolve input arguments into AsyncInputSpecs.
     fn resolve_inputs(&self) -> Result<Vec<AsyncInputSpec>, AggregateError> {
-        let mut specs = Vec::new();
+        let mut specs = Vec::with_capacity(self.input_args.len());
         let mut errors = Vec::new();
 
         for raw in &self.input_args {
@@ -165,7 +165,7 @@ impl MultiioAsyncBuilder {
 
     /// Resolve output arguments into AsyncOutputSpecs.
     fn resolve_outputs(&self) -> Result<Vec<AsyncOutputSpec>, AggregateError> {
-        let mut specs = Vec::new();
+        let mut specs = Vec::with_capacity(self.output_args.len());
         let mut errors = Vec::new();
 
         for raw in &self.output_args {

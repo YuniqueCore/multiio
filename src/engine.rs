@@ -61,7 +61,7 @@ impl IoEngine {
     where
         T: DeserializeOwned,
     {
-        let mut results = Vec::new();
+        let mut results = Vec::with_capacity(self.inputs.len());
         let mut errors = Vec::new();
 
         for spec in &self.inputs {
