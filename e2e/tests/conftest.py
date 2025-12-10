@@ -20,7 +20,7 @@ def e2e_dir() -> Path:
 
 @pytest.fixture(scope="session")
 def multiio_bin() -> Path:
-    """Ensure the multiio_pipeline binary is built once per test session."""
+    """Ensure the multiio_pipeline binary is built once per test session (sync)."""
     root = project_root()
     result = subprocess.run(
         ["cargo", "build", "--quiet", "--bin", "multiio_pipeline"],
@@ -33,6 +33,33 @@ def multiio_bin() -> Path:
 
     bin_path = root / "target" / "debug" / "multiio_pipeline"
     assert bin_path.exists(), f"built binary not found at {bin_path}"
+
+    return bin_path
+
+
+@pytest.fixture(scope="session")
+def multiio_async_bin() -> Path:
+    """Ensure the multiio_async_pipeline binary is built once per test session (async)."""
+    root = project_root()
+    result = subprocess.run(
+        [
+            "cargo",
+            "build",
+            "--quiet",
+            "--bin",
+            "multiio_async_pipeline",
+            "--features",
+            "async",
+        ],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, f"cargo build async failed: {result.stderr}"
+
+    bin_path = root / "target" / "debug" / "multiio_async_pipeline"
+    assert bin_path.exists(), f"built async binary not found at {bin_path}"
 
     return bin_path
 

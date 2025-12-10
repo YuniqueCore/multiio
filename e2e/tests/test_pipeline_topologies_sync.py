@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from conftest import e2e_dir, run_pipeline_and_compare
+from conftest import e2e_dir, run_pipeline, run_pipeline_and_compare, compare_json_files
 
 
 def test_sync_one_in_multi_out_json_yaml_csv(tmp_path: Path, multiio_bin: Path) -> None:
@@ -36,17 +36,27 @@ error_policy: fast_fail
 format_order: ["json", "yaml", "csv", "plaintext"]
 """
 
+    # First, compare JSON output structurally
+    run_pipeline_and_compare(
+        scenario=scenario,
+        pipeline_template=pipeline_yaml,
+        multiio_bin=multiio_bin,
+        tmp_path=tmp_path,
+        output_files={"out_json": "json"},
+        comparator="json",
+    )
+
+    # Then, compare YAML and CSV outputs as plain text
     run_pipeline_and_compare(
         scenario=scenario,
         pipeline_template=pipeline_yaml,
         multiio_bin=multiio_bin,
         tmp_path=tmp_path,
         output_files={
-            "out_json": "json",
             "out_yaml": "yaml",
             "out_csv": "csv",
         },
-        comparator="json",
+        comparator="text",
     )
 
 
@@ -120,14 +130,18 @@ error_policy: fast_fail
 format_order: ["json", "yaml", "csv", "plaintext"]
 """
 
-    run_pipeline_and_compare(
-        scenario=scenario,
-        pipeline_template=pipeline_yaml,
-        multiio_bin=multiio_bin,
-        tmp_path=tmp_path,
-        output_files={
-            "out1": "json",
-            "out2": "json",
-        },
-        comparator="json",
-    )
+    result = run_pipeline(multiio_bin, pipeline_yaml, tmp_path)
+    assert result.returncode == 0, f"multiio_pipeline failed: {result.stderr}\nStdout: {result.stdout}"
+
+    baseline_dir = e2e / "data" / "output" / "baseline" / scenario
+
+    output1 = output_dir / "output1.json"
+    output2 = output_dir / "output2.json"
+    baseline1 = baseline_dir / "output1.json"
+    baseline2 = baseline_dir / "output2.json"
+
+    assert output1.exists() and baseline1.exists()
+    assert output2.exists() and baseline2.exists()
+
+    compare_json_files(output1, baseline1)
+    compare_json_files(output2, baseline2)

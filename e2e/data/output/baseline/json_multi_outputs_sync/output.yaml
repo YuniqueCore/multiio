@@ -1,4 +1,4 @@
-- name: alice
-  age: 30
-- name: bob
-  age: 25
+- age: 30
+  name: alice
+- age: 25
+  name: bob
