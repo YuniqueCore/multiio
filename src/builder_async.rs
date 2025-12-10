@@ -8,7 +8,9 @@ use crate::config::{
 };
 use crate::engine_async::AsyncIoEngine;
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
-use crate::format::{AsyncFormatRegistry, FormatKind, FormatRegistry, default_registry};
+use crate::format::{
+    AsyncFormatRegistry, CustomFormat, FormatKind, FormatRegistry, default_registry,
+};
 use crate::io::{
     AsyncFileInput, AsyncFileOutput, AsyncInputProvider, AsyncOutputTarget, AsyncStdinInput,
     AsyncStdoutOutput,
@@ -43,6 +45,32 @@ impl MultiioAsyncBuilder {
             default_output_formats: vec![FormatKind::Json, FormatKind::Yaml, FormatKind::Plaintext],
             file_exists_policy: FileExistsPolicy::Overwrite,
         }
+    }
+
+    /// Replace the underlying sync `FormatRegistry` used for decoding,
+    /// encoding, and streaming.
+    pub fn with_sync_registry(mut self, registry: FormatRegistry) -> Self {
+        self.sync_registry = registry;
+        self
+    }
+
+    /// Register a custom format on the sync registry and mark it available on
+    /// the async registry.
+    ///
+    /// This ensures that custom formats participate fully in decode/encode and
+    /// streaming via the sync `FormatRegistry`, while the async registry is
+    /// aware of the corresponding `FormatKind::Custom` for feature gating or
+    /// extension-based resolution paths.
+    pub fn with_custom_format(mut self, format: CustomFormat) -> Self {
+        // Register the custom format in the sync registry so that
+        // `deserialize_value`, `serialize_value`, and
+        // `stream_deserialize_into` can use it.
+        self.sync_registry.register_custom(format.clone());
+
+        // Also mark the custom kind as available in the async registry.
+        self.registry.register(FormatKind::Custom(format.name));
+
+        self
     }
 
     /// Set input arguments from command line args.

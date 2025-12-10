@@ -258,7 +258,7 @@ mod async_stream {
     async fn async_read_records_async_with_concurrency_gt_one() {
         let dir = tempfile::tempdir().unwrap();
 
-        let mk_spec = |name: &str| {
+        let mk_spec = |name: &str| async {
             let path = dir.path().join(format!("{name}.jsonl"));
             let jsonl = format!("{{\"name\":\"{name}\",\"value\":1}}\n");
             tokio::fs::write(&path, jsonl).await.unwrap();
@@ -269,7 +269,11 @@ mod async_stream {
                 .with_candidates(vec![FormatKind::Json])
         };
 
-        let inputs = vec![mk_spec("a"), mk_spec("b"), mk_spec("c")];
+        let a = mk_spec("a").await;
+        let b = mk_spec("b").await;
+        let c = mk_spec("c").await;
+
+        let inputs = vec![a, b, c];
 
         let registry = default_async_registry();
         let outputs: Vec<crate::config::AsyncOutputSpec> = Vec::new();
