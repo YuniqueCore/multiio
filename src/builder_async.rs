@@ -9,14 +9,14 @@ use crate::config::{
 use crate::engine_async::AsyncIoEngine;
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
 use crate::format::{
-    AsyncFormatRegistry, CustomFormat, FormatKind, FormatRegistry, default_registry,
+    AsyncFormatRegistry, CustomFormat, FormatKind, FormatRegistry, default_async_registry,
+    default_registry,
 };
 use crate::io::{
     AsyncFileInput, AsyncFileOutput, AsyncInputProvider, AsyncOutputTarget, AsyncStdinInput,
     AsyncStdoutOutput,
 };
 
-/// Builder for creating AsyncIoEngine instances.
 pub struct MultiioAsyncBuilder {
     input_args: Vec<String>,
     output_args: Vec<String>,
@@ -30,8 +30,13 @@ pub struct MultiioAsyncBuilder {
     file_exists_policy: FileExistsPolicy,
 }
 
+impl Default for MultiioAsyncBuilder {
+    fn default() -> Self {
+        MultiioAsyncBuilder::new(default_async_registry())
+    }
+}
+
 impl MultiioAsyncBuilder {
-    /// Create a new async builder with the given format registry.
     pub fn new(registry: AsyncFormatRegistry) -> Self {
         Self {
             input_args: Vec::new(),
@@ -73,62 +78,62 @@ impl MultiioAsyncBuilder {
         self
     }
 
-    /// Set input arguments from command line args.
     pub fn inputs_from_args(mut self, args: &[String]) -> Self {
         self.input_args = args.to_vec();
         self
     }
 
-    /// Set output arguments from command line args.
     pub fn outputs_from_args(mut self, args: &[String]) -> Self {
         self.output_args = args.to_vec();
         self
     }
 
-    /// Add a single input argument.
     pub fn add_input(mut self, arg: impl Into<String>) -> Self {
         self.input_args.push(arg.into());
         self
     }
 
-    /// Add a single output argument.
     pub fn add_output(mut self, arg: impl Into<String>) -> Self {
         self.output_args.push(arg.into());
         self
     }
 
-    /// Add a pre-built async input specification.
     pub fn add_input_spec(mut self, spec: AsyncInputSpec) -> Self {
         self.input_specs.push(spec);
         self
     }
 
-    /// Add a pre-built async output specification.
     pub fn add_output_spec(mut self, spec: AsyncOutputSpec) -> Self {
         self.output_specs.push(spec);
         self
     }
 
-    /// Set the format priority order for both inputs and outputs.
     pub fn with_order(mut self, order: &[FormatKind]) -> Self {
         self.default_input_formats = order.to_vec();
         self.default_output_formats = order.to_vec();
         self
     }
 
-    /// Set the error handling policy.
+    pub fn with_input_order(mut self, order: &[FormatKind]) -> Self {
+        self.default_input_formats = order.to_vec();
+        self
+    }
+
+    pub fn with_output_order(mut self, order: &[FormatKind]) -> Self {
+        self.default_output_formats = order.to_vec();
+        self
+    }
+
     pub fn with_mode(mut self, policy: ErrorPolicy) -> Self {
         self.error_policy = policy;
         self
     }
 
-    /// Set the file exists policy for outputs.
     pub fn with_file_exists_policy(mut self, policy: FileExistsPolicy) -> Self {
         self.file_exists_policy = policy;
         self
     }
 
-    /// Build the AsyncIoEngine from the current configuration.
     pub fn build(self) -> Result<AsyncIoEngine, AggregateError> {
         let mut inputs = self.resolve_inputs()?;
         let mut outputs = self.resolve_outputs()?;
@@ -146,7 +151,6 @@ impl MultiioAsyncBuilder {
         ))
     }
 
-    /// Resolve input arguments into AsyncInputSpecs.
     fn resolve_inputs(&self) -> Result<Vec<AsyncInputSpec>, AggregateError> {
         let mut specs = Vec::with_capacity(self.input_args.len());
         let mut errors = Vec::new();
@@ -170,7 +174,6 @@ impl MultiioAsyncBuilder {
         }
     }
 
-    /// Resolve a single input argument into an AsyncInputSpec.
     fn resolve_single_input(&self, raw: &str) -> Result<AsyncInputSpec, SingleIoError> {
         if raw == "-" {
             return Ok(AsyncInputSpec {
@@ -194,7 +197,6 @@ impl MultiioAsyncBuilder {
         })
     }
 
-    /// Resolve output arguments into AsyncOutputSpecs.
     fn resolve_outputs(&self) -> Result<Vec<AsyncOutputSpec>, AggregateError> {
         let mut specs = Vec::with_capacity(self.output_args.len());
         let mut errors = Vec::new();
@@ -218,7 +220,6 @@ impl MultiioAsyncBuilder {
         }
     }
 
-    /// Resolve a single output argument into an AsyncOutputSpec.
     fn resolve_single_output(&self, raw: &str) -> Result<AsyncOutputSpec, SingleIoError> {
         if raw == "-" {
             return Ok(AsyncOutputSpec {
@@ -252,14 +253,12 @@ impl MultiioAsyncBuilder {
             .and_then(|ext| self.registry.kind_for_extension(ext))
     }
 
-    /// Create a builder from a pipeline configuration.
     pub fn from_pipeline_config(
         config: PipelineConfig,
         registry: AsyncFormatRegistry,
     ) -> Result<Self, AggregateError> {
         let mut builder = MultiioAsyncBuilder::new(registry);
 
-        // Set error policy
         if let Some(policy_str) = config.error_policy.as_deref() {
             let policy = match policy_str {
                 "fast_fail" | "fastfail" => ErrorPolicy::FastFail,
@@ -268,7 +267,6 @@ impl MultiioAsyncBuilder {
             builder = builder.with_mode(policy);
         }
 
-        // Set format order
         if let Some(order) = config.format_order.as_ref() {
             let kinds: Vec<FormatKind> = order
                 .iter()

@@ -15,7 +15,7 @@
 //! ## Quick Start
 //!
 //! ```rust,ignore
-//! use multiio::{MultiioBuilder, format::default_registry, error::ErrorPolicy};
+//! use multiio::{MultiioBuilder, error::ErrorPolicy};
 //! use serde::{Deserialize, Serialize};
 //!
 //! #[derive(Debug, Deserialize, Serialize)]
@@ -25,8 +25,7 @@
 //! }
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let registry = default_registry();
-//!     let engine = MultiioBuilder::new(registry)
+//!     let engine = MultiioBuilder::default()
 //!         .add_input("config.json")
 //!         .add_output("-")  // stdout
 //!         .with_mode(ErrorPolicy::FastFail)

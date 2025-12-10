@@ -8,10 +8,9 @@ use crate::config::{
 };
 use crate::engine::IoEngine;
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
-use crate::format::{FormatKind, FormatRegistry};
+use crate::format::{CustomFormat, FormatKind, FormatRegistry};
 use crate::io::{FileInput, FileOutput, InputProvider, OutputTarget, StdinInput, StdoutOutput};
 
-/// Builder for creating IoEngine instances.
 pub struct MultiioBuilder {
     input_args: Vec<String>,
     output_args: Vec<String>,
@@ -25,7 +24,6 @@ pub struct MultiioBuilder {
 }
 
 impl MultiioBuilder {
-    /// Create a new builder with the given format registry.
     pub fn new(registry: FormatRegistry) -> Self {
         Self {
             input_args: Vec::new(),
@@ -40,82 +38,67 @@ impl MultiioBuilder {
         }
     }
 
-    /// Set input arguments from command line args.
-    ///
-    /// Each argument is parsed as either:
-    /// - "-" for stdin
-    /// - A file path
+    pub fn with_custom_format(mut self, format: CustomFormat) -> Self {
+        self.registry.register_custom(format);
+        self
+    }
+
     pub fn inputs_from_args(mut self, args: &[String]) -> Self {
         self.input_args = args.to_vec();
         self
     }
 
-    /// Set output arguments from command line args.
-    ///
-    /// Each argument is parsed as either:
-    /// - "-" for stdout
-    /// - A file path
     pub fn outputs_from_args(mut self, args: &[String]) -> Self {
         self.output_args = args.to_vec();
         self
     }
 
-    /// Add a single input argument.
     pub fn add_input(mut self, arg: impl Into<String>) -> Self {
         self.input_args.push(arg.into());
         self
     }
 
-    /// Add a single output argument.
     pub fn add_output(mut self, arg: impl Into<String>) -> Self {
         self.output_args.push(arg.into());
         self
     }
 
-    /// Add a pre-built input specification.
     pub fn add_input_spec(mut self, spec: InputSpec) -> Self {
         self.input_specs.push(spec);
         self
     }
 
-    /// Add a pre-built output specification.
     pub fn add_output_spec(mut self, spec: OutputSpec) -> Self {
         self.output_specs.push(spec);
         self
     }
 
-    /// Set the format priority order for both inputs and outputs.
     pub fn with_order(mut self, order: &[FormatKind]) -> Self {
         self.default_input_formats = order.to_vec();
         self.default_output_formats = order.to_vec();
         self
     }
 
-    /// Set the format priority order for inputs only.
     pub fn with_input_order(mut self, order: &[FormatKind]) -> Self {
         self.default_input_formats = order.to_vec();
         self
     }
 
-    /// Set the format priority order for outputs only.
     pub fn with_output_order(mut self, order: &[FormatKind]) -> Self {
         self.default_output_formats = order.to_vec();
         self
     }
 
-    /// Set the error handling policy.
     pub fn with_mode(mut self, policy: ErrorPolicy) -> Self {
         self.error_policy = policy;
         self
     }
 
-    /// Set the file exists policy for outputs.
     pub fn with_file_exists_policy(mut self, policy: FileExistsPolicy) -> Self {
         self.file_exists_policy = policy;
         self
     }
 
-    /// Build the IoEngine from the current configuration.
     pub fn build(self) -> Result<IoEngine, AggregateError> {
         let mut inputs = self.resolve_inputs()?;
         let mut outputs = self.resolve_outputs()?;
@@ -383,5 +366,11 @@ impl MultiioBuilder {
             format_candidates: self.default_output_formats.clone(),
             file_exists_policy,
         })
+    }
+}
+
+impl Default for MultiioBuilder {
+    fn default() -> Self {
+        MultiioBuilder::new(crate::format::default_registry())
     }
 }

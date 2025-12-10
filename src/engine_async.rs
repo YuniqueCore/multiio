@@ -8,7 +8,6 @@ use crate::config::{AsyncInputSpec, AsyncOutputSpec, FileExistsPolicy};
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
 use crate::format::{self, AsyncFormatRegistry, FormatKind, FormatRegistry};
 
-/// Asynchronous I/O engine for orchestrating multi-input/multi-output operations.
 pub struct AsyncIoEngine {
     registry: AsyncFormatRegistry,
     sync_registry: Option<FormatRegistry>,
@@ -18,7 +17,6 @@ pub struct AsyncIoEngine {
 }
 
 impl AsyncIoEngine {
-    /// Create a new async I/O engine.
     pub fn new(
         registry: AsyncFormatRegistry,
         error_policy: ErrorPolicy,
@@ -34,11 +32,6 @@ impl AsyncIoEngine {
         }
     }
 
-    /// Create a new async I/O engine with an associated sync FormatRegistry.
-    ///
-    /// The sync registry can be used to resolve and stream custom formats (and
-    /// also built-in formats) while the async registry continues to be used
-    /// for feature gating and extension inference.
     pub fn new_with_sync_registry(
         registry: AsyncFormatRegistry,
         sync_registry: FormatRegistry,
@@ -55,27 +48,22 @@ impl AsyncIoEngine {
         }
     }
 
-    /// Get the format registry.
     pub fn registry(&self) -> &AsyncFormatRegistry {
         &self.registry
     }
 
-    /// Get the error policy.
     pub fn error_policy(&self) -> ErrorPolicy {
         self.error_policy
     }
 
-    /// Get the input specifications.
     pub fn inputs(&self) -> &[AsyncInputSpec] {
         &self.inputs
     }
 
-    /// Get the output specifications.
     pub fn outputs(&self) -> &[AsyncOutputSpec] {
         &self.outputs
     }
 
-    /// Read all inputs and deserialize each into type T.
     pub async fn read_all<T>(&self) -> Result<Vec<T>, AggregateError>
     where
         T: DeserializeOwned + Send + 'static,
@@ -103,14 +91,6 @@ impl AsyncIoEngine {
         }
     }
 
-    /// Stream records from all inputs using their resolved formats.
-    ///
-    /// This mirrors the synchronous `IoEngine::read_records` API but for async
-    /// inputs. Each input is read asynchronously into memory and then
-    /// deserialized using format-specific streaming implementations when
-    /// available (e.g. JSON NDJSON, CSV rows, YAML multi-doc, plaintext
-    /// line-based). For formats without streaming support this falls back to a
-    /// single-item deserialization.
     pub fn read_records_async<T>(
         &self,
         concurrency: usize,
