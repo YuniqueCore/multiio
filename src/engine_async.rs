@@ -6,7 +6,7 @@ use tokio::io::AsyncReadExt;
 
 use crate::config::{AsyncInputSpec, AsyncOutputSpec, FileExistsPolicy};
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
-use crate::format::{self, AsyncFormatRegistry};
+use crate::format::{self, AsyncFormatRegistry, FormatKind};
 
 /// Asynchronous I/O engine for orchestrating multi-input/multi-output operations.
 pub struct AsyncIoEngine {
@@ -173,15 +173,7 @@ impl AsyncIoEngine {
     where
         T: Serialize + Sync,
     {
-        // Resolve the format
-        let kind = self
-            .registry
-            .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
-            .map_err(|e| SingleIoError {
-                stage: Stage::ResolveOutput,
-                target: spec.raw.clone(),
-                error: Box::new(e),
-            })?;
+        let kind = self.resolve_output_kind(spec)?;
 
         // Serialize to bytes
         let bytes = format::serialize_async(kind, &values)
@@ -258,6 +250,16 @@ impl AsyncIoEngine {
             target: spec.raw.clone(),
             error: Box::new(e),
         })
+    }
+
+    fn resolve_output_kind(&self, spec: &AsyncOutputSpec) -> Result<FormatKind, SingleIoError> {
+        self.registry
+            .resolve(spec.explicit_format.as_ref(), &spec.format_candidates)
+            .map_err(|e| SingleIoError {
+                stage: Stage::ResolveOutput,
+                target: spec.raw.clone(),
+                error: Box::new(e),
+            })
     }
 
     /// Create a stream that reads inputs with bounded concurrency.

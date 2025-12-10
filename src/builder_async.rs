@@ -1,6 +1,6 @@
 //! Async builder for creating AsyncIoEngine instances.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::config::{AsyncInputSpec, AsyncOutputSpec, FileExistsPolicy, PipelineConfig};
@@ -151,14 +151,7 @@ impl MultiioAsyncBuilder {
         let path = PathBuf::from(raw);
         let provider: Arc<dyn AsyncInputProvider> = Arc::new(AsyncFileInput::new(path.clone()));
 
-        // Try to detect format from extension
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_ascii_lowercase());
-        let explicit = ext
-            .as_deref()
-            .and_then(|e| self.registry.kind_for_extension(e));
+        let explicit = self.infer_format_from_path(&path);
 
         Ok(AsyncInputSpec {
             raw: raw.to_string(),
@@ -207,14 +200,7 @@ impl MultiioAsyncBuilder {
         let path = PathBuf::from(raw);
         let target: Arc<dyn AsyncOutputTarget> = Arc::new(AsyncFileOutput::new(path.clone()));
 
-        // Try to detect format from extension
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_ascii_lowercase());
-        let explicit = ext
-            .as_deref()
-            .and_then(|e| self.registry.kind_for_extension(e));
+        let explicit = self.infer_format_from_path(&path);
 
         Ok(AsyncOutputSpec {
             raw: raw.to_string(),
@@ -223,6 +209,14 @@ impl MultiioAsyncBuilder {
             format_candidates: self.default_output_formats.clone(),
             file_exists_policy: self.file_exists_policy,
         })
+    }
+
+    fn infer_format_from_path(&self, path: &Path) -> Option<FormatKind> {
+        path.extension()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_ascii_lowercase())
+            .as_deref()
+            .and_then(|ext| self.registry.kind_for_extension(ext))
     }
 
     /// Create a builder from a pipeline configuration.
