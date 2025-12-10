@@ -1,7 +1,3 @@
-#![cfg(feature = "csv")]
-
-//! CSV format roundtrip tests.
-
 use crate::format::{FormatKind, deserialize, serialize};
 use serde::{Deserialize, Serialize};
 

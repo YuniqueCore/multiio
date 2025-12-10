@@ -1,5 +1,3 @@
-//! End-to-end and error-policy tests for IoEngine.
-
 use std::sync::Arc;
 
 use crate::config::{FileExistsPolicy, InputSpec, OutputSpec};
@@ -25,7 +23,6 @@ fn make_engine(
 
 #[test]
 fn sync_engine_read_write_inmemory_ok() {
-    // Prepare in-memory JSON input
     let json = r#"{"name": "a", "value": 1}"#;
     let src = Arc::new(InMemorySource::from_string("in", json));
 
@@ -33,7 +30,6 @@ fn sync_engine_read_write_inmemory_ok() {
         .with_format(FormatKind::Json)
         .with_candidates(vec![FormatKind::Json]);
 
-    // Prepare in-memory output
     let sink = Arc::new(InMemorySink::new("out"));
     let output_spec = OutputSpec::new("out", sink.clone())
         .with_format(FormatKind::Json)
@@ -42,7 +38,6 @@ fn sync_engine_read_write_inmemory_ok() {
 
     let engine = make_engine(ErrorPolicy::FastFail, vec![input_spec], vec![output_spec]);
 
-    // End-to-end: read then write
     let values: Vec<Config> = engine.read_all().expect("read_all should succeed");
     assert_eq!(values.len(), 1);
     assert_eq!(values[0].name, "a");
@@ -50,7 +45,6 @@ fn sync_engine_read_write_inmemory_ok() {
 
     engine.write_all(&values).expect("write_all should succeed");
 
-    // Verify output JSON is valid and decodes back to same value
     let out_str = sink.contents_string();
     let decoded: Vec<Config> = serde_json::from_str(&out_str).expect("output must be valid json");
     assert_eq!(decoded, values);
@@ -58,7 +52,6 @@ fn sync_engine_read_write_inmemory_ok() {
 
 #[test]
 fn sync_engine_fast_fail_on_open_error() {
-    // A fake input that always fails on open, simulating network/FS errors.
     #[derive(Debug)]
     struct FailingInput {
         id: String,

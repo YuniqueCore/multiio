@@ -1,5 +1,3 @@
-//! End-to-end tests for MultiioBuilder::from_pipeline_config.
-
 use std::fs;
 use std::path::PathBuf;
 
@@ -55,7 +53,6 @@ format_order: ["json", "yaml", "plaintext"]
     let builder = MultiioBuilder::from_pipeline_config(pipeline, registry)
         .expect("from_pipeline_config should succeed");
 
-    // Override error policy explicitly to be safe
     let engine = builder
         .with_mode(ErrorPolicy::FastFail)
         .build()
@@ -151,10 +148,8 @@ outputs:
     let builder = MultiioBuilder::from_pipeline_config(pipeline, registry)
         .expect("from_pipeline_config should succeed");
 
-    // Pre-write some data to the output file
     fs::write(&out_path, b"OLD").expect("write initial output");
 
-    // Build engine; we won't call read_all() (stdin), only write_all()
     let engine = builder
         .with_mode(ErrorPolicy::FastFail)
         .build()
@@ -168,7 +163,6 @@ outputs:
     let vals = vec![Dummy { x: 1 }];
     engine.write_all(&vals).expect("write_all");
 
-    // With append policy, new JSON bytes should be appended after existing content
     let contents = fs::read(&out_path).expect("read output");
     let s = String::from_utf8_lossy(&contents);
     assert!(s.starts_with("OLD"));

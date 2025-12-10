@@ -1,7 +1,3 @@
-#![cfg(feature = "xml")]
-
-//! XML format roundtrip tests.
-
 use crate::format::{FormatKind, deserialize, serialize};
 use serde::{Deserialize, Serialize};
 

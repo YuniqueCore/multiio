@@ -1,7 +1,5 @@
 #![cfg(feature = "async")]
 
-//! Async end-to-end and error-policy tests for AsyncIoEngine.
-
 use std::sync::Arc;
 
 use crate::config::{AsyncInputSpec, AsyncOutputSpec, FileExistsPolicy};
@@ -32,7 +30,6 @@ async fn async_engine_read_write_file_ok() {
     let in_path = dir.path().join("input.json");
     let out_path = dir.path().join("output.json");
 
-    // Write a single JSON object as input (one Config per AsyncInputSpec)
     let json = r#"{"name": "a", "value": 1}"#;
     tokio::fs::write(&in_path, json).await.unwrap();
 
@@ -61,7 +58,6 @@ async fn async_engine_read_write_file_ok() {
         .await
         .expect("write_all should succeed");
 
-    // Verify written file is valid JSON and decodes back
     let out_bytes = tokio::fs::read(&out_path).await.unwrap();
     let decoded: Vec<Config> = serde_json::from_slice(&out_bytes).unwrap();
     assert_eq!(decoded, values);
@@ -69,7 +65,6 @@ async fn async_engine_read_write_file_ok() {
 
 #[tokio::test]
 async fn async_engine_fast_fail_on_open_error() {
-    // Fake async input provider simulating network timeout
     #[derive(Debug)]
     struct FailingAsyncInput {
         id: String,
@@ -119,20 +114,17 @@ async fn async_engine_fast_fail_on_open_error() {
 async fn async_engine_accumulate_parse_errors() {
     let dir = tempfile::tempdir().unwrap();
 
-    // Valid JSON file (single object)
     let ok_path = dir.path().join("ok.json");
     tokio::fs::write(&ok_path, r#"{"name": "ok", "value": 1}"#)
         .await
         .unwrap();
 
-    // Invalid JSON files
     let bad1_path = dir.path().join("bad1.json");
     tokio::fs::write(&bad1_path, "{not-json").await.unwrap();
 
     let bad2_path = dir.path().join("bad2.json");
     tokio::fs::write(&bad2_path, "[1,2,,]").await.unwrap();
 
-    // Build input specs with separate ID strings and cloned paths
     let ok_id = ok_path.to_string_lossy().to_string();
     let ok_spec = AsyncInputSpec::new(ok_id, Arc::new(AsyncFileInput::new(ok_path.clone())))
         .with_format(FormatKind::Json)

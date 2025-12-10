@@ -245,7 +245,7 @@ impl MultiioAsyncBuilder {
         if let Some(order) = config.format_order.as_ref() {
             let kinds: Vec<FormatKind> = order
                 .iter()
-                .filter_map(|s| FormatKind::from_str(s))
+                .filter_map(|s| s.parse::<FormatKind>().ok())
                 .collect();
             builder = builder.with_order(&kinds);
         }

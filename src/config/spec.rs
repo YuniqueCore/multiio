@@ -17,15 +17,17 @@ pub enum FileExistsPolicy {
     Error,
 }
 
-impl FileExistsPolicy {
-    /// Parse a policy from a string.
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s.to_ascii_lowercase().as_str() {
-            "overwrite" => Some(FileExistsPolicy::Overwrite),
-            "append" => Some(FileExistsPolicy::Append),
-            "error" => Some(FileExistsPolicy::Error),
-            _ => None,
-        }
+impl std::str::FromStr for FileExistsPolicy {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let policy = match s.to_ascii_lowercase().as_str() {
+            "overwrite" => FileExistsPolicy::Overwrite,
+            "append" => FileExistsPolicy::Append,
+            "error" => FileExistsPolicy::Error,
+            _ => return Err(()),
+        };
+        Ok(policy)
     }
 }
 

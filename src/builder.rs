@@ -1,6 +1,6 @@
 //! Builder for creating IoEngine instances.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::config::{
@@ -170,14 +170,7 @@ impl MultiioBuilder {
         let path = PathBuf::from(raw);
         let provider: Arc<dyn InputProvider> = Arc::new(FileInput::new(path.clone()));
 
-        // Try to detect format from extension
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_ascii_lowercase());
-        let explicit = ext
-            .as_deref()
-            .and_then(|e| self.registry.kind_for_extension(e));
+        let explicit = self.infer_format_from_path(&path);
 
         Ok(InputSpec {
             raw: raw.to_string(),
@@ -226,14 +219,7 @@ impl MultiioBuilder {
         let path = PathBuf::from(raw);
         let target: Arc<dyn OutputTarget> = Arc::new(FileOutput::new(path.clone()));
 
-        // Try to detect format from extension
-        let ext = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .map(|s| s.to_ascii_lowercase());
-        let explicit = ext
-            .as_deref()
-            .and_then(|e| self.registry.kind_for_extension(e));
+        let explicit = self.infer_format_from_path(&path);
 
         Ok(OutputSpec {
             raw: raw.to_string(),
@@ -242,6 +228,14 @@ impl MultiioBuilder {
             format_candidates: self.default_output_formats.clone(),
             file_exists_policy: self.file_exists_policy,
         })
+    }
+
+    fn infer_format_from_path(&self, path: &Path) -> Option<FormatKind> {
+        path.extension()
+            .and_then(|s| s.to_str())
+            .map(|s| s.to_ascii_lowercase())
+            .as_deref()
+            .and_then(|ext| self.registry.kind_for_extension(ext))
     }
 
     /// Create a builder from a pipeline configuration.
@@ -264,7 +258,7 @@ impl MultiioBuilder {
         if let Some(order) = config.format_order.as_ref() {
             let kinds: Vec<FormatKind> = order
                 .iter()
-                .filter_map(|s| FormatKind::from_str(s))
+                .filter_map(|s| s.parse::<FormatKind>().ok())
                 .collect();
             builder = builder.with_order(&kinds);
         }
@@ -330,7 +324,10 @@ impl MultiioBuilder {
             }
         };
 
-        let explicit_format = cfg.format.as_ref().and_then(|s| FormatKind::from_str(s));
+        let explicit_format = cfg
+            .format
+            .as_ref()
+            .and_then(|s| s.parse::<FormatKind>().ok());
 
         Ok(InputSpec {
             raw: cfg.id.clone(),
@@ -368,12 +365,15 @@ impl MultiioBuilder {
             }
         };
 
-        let explicit_format = cfg.format.as_ref().and_then(|s| FormatKind::from_str(s));
+        let explicit_format = cfg
+            .format
+            .as_ref()
+            .and_then(|s| s.parse::<FormatKind>().ok());
 
         let file_exists_policy = cfg
             .file_exists_policy
             .as_ref()
-            .and_then(|s| FileExistsPolicy::from_str(s))
+            .and_then(|s| s.parse::<FileExistsPolicy>().ok())
             .unwrap_or(self.file_exists_policy);
 
         Ok(OutputSpec {

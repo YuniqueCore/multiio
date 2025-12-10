@@ -71,20 +71,24 @@ impl FormatKind {
     }
 }
 
-impl FormatKind {
-    /// Parse a format kind from a string.
-    pub fn from_str(s: &str) -> Option<Self> {
-        match s.to_ascii_lowercase().as_str() {
-            "plaintext" | "text" | "txt" => Some(FormatKind::Plaintext),
-            "json" => Some(FormatKind::Json),
-            "yaml" | "yml" => Some(FormatKind::Yaml),
-            "xml" => Some(FormatKind::Xml),
-            "csv" => Some(FormatKind::Csv),
-            "markdown" | "md" => Some(FormatKind::Markdown),
-            _ => None,
-        }
-    }
+impl std::str::FromStr for FormatKind {
+    type Err = ();
 
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let kind = match s.to_ascii_lowercase().as_str() {
+            "plaintext" | "text" | "txt" => FormatKind::Plaintext,
+            "json" => FormatKind::Json,
+            "yaml" | "yml" => FormatKind::Yaml,
+            "xml" => FormatKind::Xml,
+            "csv" => FormatKind::Csv,
+            "markdown" | "md" => FormatKind::Markdown,
+            _ => return Err(()),
+        };
+        Ok(kind)
+    }
+}
+
+impl FormatKind {
     /// Get file extensions for this format.
     /// Note: For custom formats, this returns an empty slice.
     /// Use FormatRegistry to get extensions for custom formats.

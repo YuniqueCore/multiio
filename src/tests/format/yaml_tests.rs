@@ -1,7 +1,3 @@
-#![cfg(feature = "yaml")]
-
-//! YAML format roundtrip tests.
-
 use crate::format::{FormatKind, deserialize, serialize};
 use serde::{Deserialize, Serialize};
 

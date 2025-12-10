@@ -62,7 +62,7 @@ impl InputArgs {
     pub fn format_kind(&self) -> Option<FormatKind> {
         self.input_format
             .as_ref()
-            .and_then(|s| FormatKind::from_str(s))
+            .and_then(|s| s.parse::<FormatKind>().ok())
     }
 
     /// Check if reading from stdin.
@@ -118,7 +118,7 @@ impl OutputArgs {
     pub fn format_kind(&self) -> Option<FormatKind> {
         self.output_format
             .as_ref()
-            .and_then(|s| FormatKind::from_str(s))
+            .and_then(|s| s.parse::<FormatKind>().ok())
     }
 
     /// Check if writing to stdout.
@@ -142,7 +142,7 @@ impl OutputArgs {
 ///
 /// Supports common format names and aliases.
 pub fn parse_format(s: &str) -> Option<FormatKind> {
-    FormatKind::from_str(s)
+    s.parse::<FormatKind>().ok()
 }
 
 /// Infer format from file extension.
@@ -150,5 +150,5 @@ pub fn infer_format_from_path(path: &str) -> Option<FormatKind> {
     let ext = std::path::Path::new(path)
         .extension()
         .and_then(|e| e.to_str())?;
-    FormatKind::from_str(ext)
+    ext.parse::<FormatKind>().ok()
 }

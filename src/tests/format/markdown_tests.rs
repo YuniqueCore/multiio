@@ -1,7 +1,3 @@
-#![cfg(feature = "markdown")]
-
-//! Markdown format tests.
-
 use crate::format::{FormatKind, deserialize, serialize};
 use serde::{Deserialize, Serialize};
 
