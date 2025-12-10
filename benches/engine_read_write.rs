@@ -54,5 +54,27 @@ fn bench_engine_read_write(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(benches, bench_engine_read_write);
+fn bench_engine_read_stream(c: &mut Criterion) {
+    let mut group = c.benchmark_group("engine_read_stream_inmemory");
+
+    for &n in &[1usize, 4, 16, 64] {
+        group.bench_function(format!("read_stream_{n}"), |b| {
+            b.iter_batched(
+                || make_engine(n),
+                |engine| {
+                    let iter = engine.read_stream::<Config>();
+                    for v in iter {
+                        let v = v.expect("stream item");
+                        black_box(v);
+                    }
+                },
+                BatchSize::SmallInput,
+            )
+        });
+    }
+
+    group.finish();
+}
+
+criterion_group!(benches, bench_engine_read_write, bench_engine_read_stream);
 criterion_main!(benches);
