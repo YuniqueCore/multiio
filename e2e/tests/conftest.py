@@ -83,6 +83,25 @@ def multiio_manual_bin() -> Path:
     return bin_path
 
 
+@pytest.fixture(scope="session")
+def multiio_records_demo_bin() -> Path:
+    """Ensure the multiio_records_demo binary is built once per test session (records demo)."""
+    root = project_root()
+    result = subprocess.run(
+        ["cargo", "build", "--quiet", "--bin", "multiio_records_demo"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, f"cargo build records_demo failed: {result.stderr}"
+
+    bin_path = root / "target" / "debug" / "multiio_records_demo"
+    assert bin_path.exists(), f"built records_demo binary not found at {bin_path}"
+
+    return bin_path
+
+
 def run_pipeline(
     multiio_bin: Path,
     pipeline_yaml_content: str,

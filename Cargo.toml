@@ -76,3 +76,8 @@ required-features = ["json"]
 name = "multiio_async_pipeline"
 path = "src/bin/multiio_async_pipeline.rs"
 required-features = ["json", "async"]
+
+[[bin]]
+name = "multiio_records_demo"
+path = "src/bin/multiio_records_demo.rs"
+required-features = ["json"]
