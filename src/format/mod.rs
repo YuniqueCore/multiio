@@ -8,6 +8,8 @@
 
 use std::io::Read;
 
+use paste::paste;
+
 mod custom;
 pub use custom::CustomFormat;
 
@@ -46,22 +48,6 @@ pub enum FormatKind {
     Plaintext,
 }
 
-impl std::fmt::Display for FormatKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            FormatKind::Plaintext => write!(f, "plaintext"),
-            FormatKind::Json => write!(f, "json"),
-            FormatKind::Yaml => write!(f, "yaml"),
-            FormatKind::Xml => write!(f, "xml"),
-            FormatKind::Csv => write!(f, "csv"),
-            FormatKind::Markdown => write!(f, "markdown"),
-            FormatKind::Toml => write!(f, "toml"),
-            FormatKind::Ini => write!(f, "ini"),
-            FormatKind::Custom(name) => write!(f, "{}", name),
-        }
-    }
-}
-
 impl Copy for FormatKind {}
 
 /// Central spec for all builtin (non-custom) formats.
@@ -93,6 +79,21 @@ macro_rules! format_spec {
             (Other,      Xml,       "xml",       xml,       "xml",       ["xml"],             ["xml"])
             (Other,      Markdown,  "markdown",  markdown,  "markdown",  ["md", "markdown"], ["markdown", "md"])
             (Other,      Plaintext, "plaintext", plaintext, "plaintext", ["txt", "text"],    ["plaintext", "text", "txt"])
+        }
+    };
+}
+
+// Projection: full `Display` implementation for `FormatKind`.
+macro_rules! impl_formatkind_display {
+    ( $(($cat:ident, $kind:ident, $feat:literal, $module:ident,
+        $display:literal, [$($ext:literal),*], [$($alias:literal),*]))* ) => {
+        impl std::fmt::Display for FormatKind {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                    $( FormatKind::$kind => write!(f, $display), )*
+                    FormatKind::Custom(name) => write!(f, "{}", name),
+                }
+            }
         }
     };
 }
@@ -130,6 +131,7 @@ macro_rules! define_structured_text_from_spec {
 
 format_spec!(define_default_order_from_spec);
 format_spec!(define_structured_text_from_spec);
+format_spec!(impl_formatkind_display);
 
 // Projection: body for `FormatKind::extensions`.
 macro_rules! impl_formatkind_extensions_body {
@@ -238,67 +240,49 @@ pub enum FormatError {
     Other(Box<dyn std::error::Error + Send + Sync>),
 }
 
+// Projection: body for top-level `deserialize` function.
+macro_rules! impl_deserialize_body {
+    ($bytes:ident, $kind:ident
+        $(($cat:ident, $fmt_kind:ident, $feat:literal, $module:ident,
+           $display:literal, [$($ext:literal),*], [$($alias:literal),*]))*
+    ) => {{
+        match $kind {
+            $(
+                #[cfg(feature = $feat)]
+                FormatKind::$fmt_kind => $module::deserialize($bytes),
+            )*
+
+            #[allow(unreachable_patterns)]
+            _ => Err(FormatError::NotEnabled($kind)),
+        }
+    }};
+}
+
+// Projection: body for top-level `serialize` function.
+macro_rules! impl_serialize_body {
+    ($value:ident, $kind:ident
+        $(($cat:ident, $fmt_kind:ident, $feat:literal, $module:ident,
+           $display:literal, [$($ext:literal),*], [$($alias:literal),*]))*
+    ) => {{
+        match $kind {
+            $(
+                #[cfg(feature = $feat)]
+                FormatKind::$fmt_kind => $module::serialize($value),
+            )*
+
+            #[allow(unreachable_patterns)]
+            _ => Err(FormatError::NotEnabled($kind)),
+        }
+    }};
+}
+
 pub fn deserialize<T: DeserializeOwned>(kind: FormatKind, bytes: &[u8]) -> Result<T, FormatError> {
-    match kind {
-        #[cfg(feature = "json")]
-        FormatKind::Json => json::deserialize(bytes),
-
-        #[cfg(feature = "yaml")]
-        FormatKind::Yaml => yaml::deserialize(bytes),
-
-        #[cfg(feature = "csv")]
-        FormatKind::Csv => csv::deserialize(bytes),
-
-        #[cfg(feature = "xml")]
-        FormatKind::Xml => xml::deserialize(bytes),
-
-        #[cfg(feature = "markdown")]
-        FormatKind::Markdown => markdown::deserialize(bytes),
-
-        #[cfg(feature = "plaintext")]
-        FormatKind::Plaintext => plaintext::deserialize(bytes),
-
-        #[cfg(feature = "toml")]
-        FormatKind::Toml => toml::deserialize(bytes),
-
-        #[cfg(feature = "ini")]
-        FormatKind::Ini => ini::deserialize(bytes),
-
-        #[allow(unreachable_patterns)]
-        _ => Err(FormatError::NotEnabled(kind)),
-    }
+    format_spec!(impl_deserialize_body(bytes, kind))
 }
 
 /// Serialize to bytes using the specified format.
 pub fn serialize<T: Serialize>(kind: FormatKind, value: &T) -> Result<Vec<u8>, FormatError> {
-    match kind {
-        #[cfg(feature = "json")]
-        FormatKind::Json => json::serialize(value),
-
-        #[cfg(feature = "yaml")]
-        FormatKind::Yaml => yaml::serialize(value),
-
-        #[cfg(feature = "csv")]
-        FormatKind::Csv => csv::serialize(value),
-
-        #[cfg(feature = "xml")]
-        FormatKind::Xml => xml::serialize(value),
-
-        #[cfg(feature = "markdown")]
-        FormatKind::Markdown => markdown::serialize(value),
-
-        #[cfg(feature = "plaintext")]
-        FormatKind::Plaintext => plaintext::serialize(value),
-
-        #[cfg(feature = "toml")]
-        FormatKind::Toml => toml::serialize(value),
-
-        #[cfg(feature = "ini")]
-        FormatKind::Ini => ini::serialize(value),
-
-        #[allow(unreachable_patterns)]
-        _ => Err(FormatError::NotEnabled(kind)),
-    }
+    format_spec!(impl_serialize_body(value, kind))
 }
 
 /// Deserialize from a reader using the specified format.
@@ -311,45 +295,73 @@ pub fn deserialize_from_reader<T: DeserializeOwned>(
     deserialize(kind, &bytes)
 }
 
-/// Stream JSON values from a reader as multiple top-level JSON documents.
-#[cfg(feature = "json")]
-pub fn deserialize_json_stream<T, R>(reader: R) -> impl Iterator<Item = Result<T, FormatError>>
-where
-    T: DeserializeOwned,
-    R: Read,
-{
-    json::stream_deserialize(reader)
+macro_rules! define_stream_deserialize_fn_read {
+    (
+        $(#[$meta:meta])*
+        [$cfg_feat:literal]
+        $module:ident
+    ) => {
+        paste! {
+            $(#[$meta])*
+            #[cfg(feature = $cfg_feat)]
+            pub fn [<deserialize_ $module _stream>]<T, R>(
+                reader: R,
+            ) -> impl Iterator<Item = Result<T, FormatError>>
+            where
+                T: DeserializeOwned,
+                R: Read,
+            {
+                $module::stream_deserialize(reader)
+            }
+        }
+    };
 }
 
-/// Stream CSV records from a reader.
-#[cfg(feature = "csv")]
-pub fn deserialize_csv_stream<T, R>(reader: R) -> impl Iterator<Item = Result<T, FormatError>>
-where
-    T: DeserializeOwned,
-    R: Read,
-{
-    csv::stream_deserialize(reader)
+macro_rules! define_stream_deserialize_fn_read_static {
+    (
+        $(#[$meta:meta])*
+        [$cfg_feat:literal]
+        $module:ident
+    ) => {
+        paste! {
+            $(#[$meta])*
+            #[cfg(feature = $cfg_feat)]
+            pub fn [<deserialize_ $module _stream>]<T, R>(
+                reader: R,
+            ) -> impl Iterator<Item = Result<T, FormatError>>
+            where
+                T: DeserializeOwned,
+                R: Read + 'static,
+            {
+                $module::stream_deserialize(reader)
+            }
+        }
+    };
 }
 
-/// Stream YAML documents from a reader.
-#[cfg(feature = "yaml")]
-pub fn deserialize_yaml_stream<T, R>(reader: R) -> impl Iterator<Item = Result<T, FormatError>>
-where
-    T: DeserializeOwned,
-    R: Read + 'static,
-{
-    yaml::stream_deserialize(reader)
-}
+define_stream_deserialize_fn_read!(
+    /// Stream JSON values from a reader as multiple top-level JSON documents.
+    ["json"]
+    json
+);
 
-/// Stream plaintext records (typically lines) from a reader.
-#[cfg(feature = "plaintext")]
-pub fn deserialize_plaintext_stream<T, R>(reader: R) -> impl Iterator<Item = Result<T, FormatError>>
-where
-    T: DeserializeOwned,
-    R: Read,
-{
-    plaintext::stream_deserialize(reader)
-}
+define_stream_deserialize_fn_read!(
+    /// Stream CSV records from a reader.
+    ["csv"]
+    csv
+);
+
+define_stream_deserialize_fn_read_static!(
+    /// Stream YAML documents from a reader.
+    ["yaml"]
+    yaml
+);
+
+define_stream_deserialize_fn_read!(
+    /// Stream plaintext records (typically lines) from a reader.
+    ["plaintext"]
+    plaintext
+);
 
 /// Format registry.
 #[derive(Default)]
@@ -625,6 +637,8 @@ impl FormatRegistry {
 }
 
 /// Create a default registry with all enabled formats.
+///
+/// default formats with order: [DEFAULT_FORMAT_ORDER]
 pub fn default_registry() -> FormatRegistry {
     let mut registry = FormatRegistry::new();
 
@@ -642,6 +656,10 @@ pub fn default_registry() -> FormatRegistry {
                 #[cfg(feature = "toml")]
                 registry.register(FormatKind::Toml);
             }
+            FormatKind::Ini => {
+                #[cfg(feature = "ini")]
+                registry.register(FormatKind::Ini);
+            }
             FormatKind::Csv => {
                 #[cfg(feature = "csv")]
                 registry.register(FormatKind::Csv);
@@ -650,10 +668,7 @@ pub fn default_registry() -> FormatRegistry {
                 #[cfg(feature = "xml")]
                 registry.register(FormatKind::Xml);
             }
-            FormatKind::Ini => {
-                #[cfg(feature = "ini")]
-                registry.register(FormatKind::Ini);
-            }
+
             FormatKind::Markdown => {
                 #[cfg(feature = "markdown")]
                 registry.register(FormatKind::Markdown);
@@ -681,9 +696,9 @@ mod tests {
                 FormatKind::Json,
                 FormatKind::Yaml,
                 FormatKind::Toml,
+                FormatKind::Ini,
                 FormatKind::Csv,
                 FormatKind::Xml,
-                FormatKind::Ini,
                 FormatKind::Markdown,
                 FormatKind::Plaintext,
             ],

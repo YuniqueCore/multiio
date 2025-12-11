@@ -9,26 +9,27 @@ keywords = ["io", "cli", "multi-input", "multi-output", "format"]
 categories = ["command-line-interface", "encoding", "parser-implementations"]
 
 [features]
-default = ["json", "yaml", "csv", "plaintext", "toml", "ini"]
+default = ["json", "yaml", "toml", "ini", "csv", "xml", "markdown", "plaintext"]
 json = ["serde_json"]
 yaml = ["serde_yaml"]
+toml = ["dep:toml"]
+ini = ["dep:serde_ini"]
 csv = ["dep:csv"]
 xml = ["quick-xml"]
 markdown = []
 plaintext = []
-toml = ["dep:toml"]
-ini = ["dep:serde_ini"]
+
 async = ["tokio", "async-trait", "futures"]
 miette = ["dep:miette"]
 full = [
     "json",
     "yaml",
+    "toml",
+    "ini",
     "csv",
     "xml",
     "markdown",
     "plaintext",
-    "toml",
-    "ini",
     "async",
     "miette",
 ]
@@ -36,14 +37,15 @@ full = [
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "2"
+paste = "1.0"
 
 # Format-specific dependencies (optional)
 serde_json = { version = "1.0", optional = true }
 serde_yaml = { version = "0.9", optional = true }
-csv = { version = "1.4", optional = true }
-quick-xml = { version = "0.38", features = ["serialize"], optional = true }
 toml = { version = "0.9", optional = true }
 serde_ini = { version = "0.2", optional = true }
+csv = { version = "1.4", optional = true }
+quick-xml = { version = "0.38", features = ["serialize"], optional = true }
 
 # Async support (optional)
 tokio = { version = "1", features = [
