@@ -64,6 +64,25 @@ def multiio_async_bin() -> Path:
     return bin_path
 
 
+@pytest.fixture(scope="session")
+def multiio_manual_bin() -> Path:
+    """Ensure the multiio_manual binary is built once per test session (sync, non-pipeline)."""
+    root = project_root()
+    result = subprocess.run(
+        ["cargo", "build", "--quiet", "--bin", "multiio_manual"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, f"cargo build manual failed: {result.stderr}"
+
+    bin_path = root / "target" / "debug" / "multiio_manual"
+    assert bin_path.exists(), f"built manual binary not found at {bin_path}"
+
+    return bin_path
+
+
 def run_pipeline(
     multiio_bin: Path,
     pipeline_yaml_content: str,
