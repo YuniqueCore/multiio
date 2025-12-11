@@ -25,13 +25,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     let builder = MultiioAsyncBuilder::from_pipeline_config(config, registry)?;
     let engine = builder.build()?;
 
-    // For e2e purposes we operate on serde_json::Value so that any supported
-    // format can be used as input or output without having to define a
-    // concrete Rust struct in the CLI.
     let mut values: Vec<serde_json::Value> = engine.read_all().await?;
 
-    // Unwrap single-element arrays to avoid double-nesting when the input
-    // is already an array (common case for JSON/YAML/CSV inputs).
     if values.len() == 1
         && let serde_json::Value::Array(inner) = &values[0]
     {

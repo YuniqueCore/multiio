@@ -1,27 +1,20 @@
-//! Miette integration for pretty error reporting.
-
 use miette::{Diagnostic, Severity};
 use thiserror::Error;
 
 use super::{AggregateError, SingleIoError};
 
-/// A diagnostic wrapper for I/O errors compatible with miette.
 #[derive(Debug, Error, Diagnostic)]
 #[error("{message}")]
 pub struct IoDiagnostic {
-    /// The error message
     pub message: String,
 
     #[source]
-    /// The underlying error source
     pub source: Option<Box<dyn std::error::Error + Send + Sync>>,
 
     #[help]
-    /// Help text for the user
     pub help: Option<String>,
 
     #[diagnostic(severity)]
-    /// Severity level
     pub severity: Severity,
 }
 

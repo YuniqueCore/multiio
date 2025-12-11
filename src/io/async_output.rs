@@ -1,11 +1,8 @@
-//! Async output target trait definition.
-
 use std::fmt::Debug;
 
 use async_trait::async_trait;
 use tokio::io::AsyncWrite;
 
-/// Trait for asynchronous output targets.
 #[async_trait]
 pub trait AsyncOutputTarget: Send + Sync + Debug {
     /// Returns a unique identifier for this output target.

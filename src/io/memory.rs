@@ -21,7 +21,6 @@ impl InMemorySource {
         }
     }
 
-    /// Create a new in-memory source from a string.
     pub fn from_string(id: impl Into<String>, data: impl Into<String>) -> Self {
         Self::new(id, data.into().into_bytes())
     }
@@ -46,7 +45,6 @@ pub struct InMemorySink {
 }
 
 impl InMemorySink {
-    /// Create a new empty in-memory sink.
     pub fn new(id: impl Into<String>) -> Self {
         Self {
             id: id.into(),

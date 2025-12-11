@@ -1,7 +1,3 @@
-//! Async format support for asynchronous I/O operations.
-//!
-//! Uses the same enum-based approach as sync formats.
-
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
@@ -12,8 +8,6 @@ pub async fn deserialize_async<T: DeserializeOwned + Send>(
     kind: FormatKind,
     bytes: &[u8],
 ) -> Result<T, FormatError> {
-    // Async deserialization uses the same sync implementations
-    // since serde doesn't have native async support
     super::deserialize(kind, bytes)
 }
 
@@ -22,7 +16,6 @@ pub async fn serialize_async<T: Serialize + Sync>(
     kind: FormatKind,
     value: &T,
 ) -> Result<Vec<u8>, FormatError> {
-    // Async serialization uses the same sync implementations
     super::serialize(kind, value)
 }
 
@@ -60,7 +53,6 @@ impl Default for AsyncFormatRegistry {
 }
 
 impl AsyncFormatRegistry {
-    /// Create a new empty async registry.
     pub fn new() -> Self {
         Self {
             formats: Vec::new(),
@@ -136,8 +128,8 @@ pub fn default_async_registry() -> AsyncFormatRegistry {
     #[cfg(feature = "yaml")]
     registry.register(FormatKind::Yaml);
 
-    #[cfg(feature = "plaintext")]
-    registry.register(FormatKind::Plaintext);
+    #[cfg(feature = "toml")]
+    registry.register(FormatKind::Toml);
 
     #[cfg(feature = "csv")]
     registry.register(FormatKind::Csv);
@@ -145,14 +137,14 @@ pub fn default_async_registry() -> AsyncFormatRegistry {
     #[cfg(feature = "xml")]
     registry.register(FormatKind::Xml);
 
-    #[cfg(feature = "markdown")]
-    registry.register(FormatKind::Markdown);
-
-    #[cfg(feature = "toml")]
-    registry.register(FormatKind::Toml);
-
     #[cfg(feature = "ini")]
     registry.register(FormatKind::Ini);
+
+    #[cfg(feature = "plaintext")]
+    registry.register(FormatKind::Plaintext);
+
+    #[cfg(feature = "markdown")]
+    registry.register(FormatKind::Markdown);
 
     registry
 }

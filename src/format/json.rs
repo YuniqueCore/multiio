@@ -1,5 +1,3 @@
-//! JSON format implementation.
-
 use serde::{Serialize, de::DeserializeOwned};
 use std::io::Read;
 

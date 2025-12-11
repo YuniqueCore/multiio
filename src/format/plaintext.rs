@@ -1,10 +1,10 @@
-//! Plaintext format implementation.
-
 use std::io::Read;
 
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::FormatError;
+
+// should try the all supported format firstly, if not specified format
 
 fn decode_from_string<T: DeserializeOwned>(s: String) -> Result<T, FormatError> {
     // Try JSON first if available

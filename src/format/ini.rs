@@ -1,5 +1,3 @@
-//! INI format implementation (Windows-style key/value config).
-
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::FormatError;

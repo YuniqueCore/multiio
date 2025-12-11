@@ -1,5 +1,3 @@
-//! YAML format implementation.
-
 use std::io::Read;
 
 use serde::{Serialize, de::DeserializeOwned};

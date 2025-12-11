@@ -1,5 +1,3 @@
-//! Input provider trait definition.
-
 use std::fmt::Debug;
 use std::io::Read;
 

@@ -26,23 +26,14 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let builder = MultiioBuilder::from_pipeline_config(config, registry)?;
     let engine = builder.build()?;
 
-    // For e2e purposes we operate on serde_json::Value so that any supported
-    // format can be used as input or output without having to define a
-    // concrete Rust struct in the CLI.
     let mut values: Vec<serde_json::Value> = engine.read_all()?;
 
-    // Unwrap single-element arrays to avoid double-nesting when the input
-    // is already an array (common case for JSON/YAML/CSV inputs).
     if values.len() == 1
         && let serde_json::Value::Array(inner) = &values[0]
     {
         values = inner.clone();
     }
 
-    // If there is only a single value after unwrapping, write it as a
-    // single record instead of a slice. This keeps config-style inputs
-    // (e.g. TOML/INI/JSON objects) as a single document and avoids
-    // formats like TOML rejecting top-level slices.
     if values.len() == 1 {
         engine.write_one_value(&values[0])?;
     } else {
@@ -54,10 +45,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
 fn main() {
     if let Err(e) = run() {
-        // AggregateError already implements Display, so we can show a concise
-        // summary here.
         eprintln!("multiio-pipeline error: {e}");
-        // Use non-zero exit code so that e2e tests can detect failure.
         std::process::exit(1);
     }
 }

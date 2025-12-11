@@ -1,5 +1,3 @@
-//! Async standard I/O implementations.
-
 use std::path::PathBuf;
 
 use async_trait::async_trait;
@@ -8,14 +6,12 @@ use tokio::io::{AsyncRead, AsyncWrite, BufReader, BufWriter};
 
 use super::{AsyncInputProvider, AsyncOutputTarget};
 
-/// Async input provider for reading from stdin.
 #[derive(Debug, Clone)]
 pub struct AsyncStdinInput {
     id: String,
 }
 
 impl AsyncStdinInput {
-    /// Create a new async stdin input provider.
     pub fn new() -> Self {
         Self { id: "-".into() }
     }
@@ -38,7 +34,6 @@ impl AsyncInputProvider for AsyncStdinInput {
     }
 }
 
-/// Async input provider for reading from files.
 #[derive(Debug, Clone)]
 pub struct AsyncFileInput {
     id: String,
@@ -46,7 +41,6 @@ pub struct AsyncFileInput {
 }
 
 impl AsyncFileInput {
-    /// Create a new async file input provider.
     pub fn new(path: PathBuf) -> Self {
         let id = path.to_string_lossy().into_owned();
         Self { id, path }
@@ -70,14 +64,12 @@ impl AsyncInputProvider for AsyncFileInput {
     }
 }
 
-/// Async output target for writing to stdout.
 #[derive(Debug, Clone)]
 pub struct AsyncStdoutOutput {
     id: String,
 }
 
 impl AsyncStdoutOutput {
-    /// Create a new async stdout output target.
     pub fn new() -> Self {
         Self { id: "-".into() }
     }
@@ -104,7 +96,6 @@ impl AsyncOutputTarget for AsyncStdoutOutput {
     }
 }
 
-/// Async output target for writing to files.
 #[derive(Debug, Clone)]
 pub struct AsyncFileOutput {
     id: String,
@@ -112,7 +103,6 @@ pub struct AsyncFileOutput {
 }
 
 impl AsyncFileOutput {
-    /// Create a new async file output target.
     pub fn new(path: PathBuf) -> Self {
         let id = path.to_string_lossy().into_owned();
         Self { id, path }

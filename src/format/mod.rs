@@ -32,27 +32,18 @@ mod yaml;
 use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 
-/// Represents different data format types.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FormatKind {
-    /// Plain text format
-    Plaintext,
-    /// JSON format
     Json,
-    /// YAML format
     Yaml,
-    /// XML format
-    Xml,
-    /// CSV format
-    Csv,
-    /// Markdown format
-    Markdown,
-    /// TOML format
     Toml,
-    /// INI format
+    Csv,
+    Xml,
     Ini,
+    Markdown,
     /// Custom format with a unique name
     Custom(&'static str),
+    Plaintext,
 }
 
 impl std::fmt::Display for FormatKind {
@@ -73,9 +64,7 @@ impl std::fmt::Display for FormatKind {
 
 impl Copy for FormatKind {}
 
-// Manual Copy implementation doesn't work with &'static str, use Clone instead
 impl FormatKind {
-    /// Create a custom format kind with the given name.
     pub fn custom(name: &'static str) -> Self {
         FormatKind::Custom(name)
     }
@@ -178,26 +167,20 @@ impl FormatKind {
     }
 }
 
-/// Errors that can occur during format operations.
 #[derive(Debug, Error)]
 pub enum FormatError {
-    /// The requested format is unknown or not registered
     #[error("Unknown format: {0}")]
     UnknownFormat(FormatKind),
 
-    /// No format matched the input
     #[error("No format matched the input")]
     NoFormatMatched,
 
-    /// Format feature not enabled
     #[error("Format '{0}' is not enabled. Enable the corresponding feature.")]
     NotEnabled(FormatKind),
 
-    /// I/O error during format operation
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
-    /// Serialization/deserialization error
     #[error("Serde error: {0}")]
     Serde(Box<dyn std::error::Error + Send + Sync>),
 
@@ -206,7 +189,6 @@ pub enum FormatError {
     Other(Box<dyn std::error::Error + Send + Sync>),
 }
 
-/// Deserialize from bytes using the specified format.
 pub fn deserialize<T: DeserializeOwned>(kind: FormatKind, bytes: &[u8]) -> Result<T, FormatError> {
     match kind {
         #[cfg(feature = "json")]

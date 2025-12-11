@@ -10,7 +10,6 @@ use std::fmt;
 
 use thiserror::Error;
 
-/// Error policy for I/O operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ErrorPolicy {
     /// Stop at the first error encountered
@@ -20,18 +19,13 @@ pub enum ErrorPolicy {
     Accumulate,
 }
 
-/// Stage in the I/O pipeline where an error occurred.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
-    /// Error while resolving input specification
     ResolveInput,
-    /// Error while resolving output specification
     ResolveOutput,
     /// Error while opening the I/O stream
     Open,
-    /// Error while parsing/deserializing input
     Parse,
-    /// Error while serializing output
     Serialize,
 }
 
@@ -47,7 +41,6 @@ impl fmt::Display for Stage {
     }
 }
 
-/// A single I/O error with context about where it occurred.
 #[derive(Debug)]
 pub struct SingleIoError {
     /// Stage where the error occurred

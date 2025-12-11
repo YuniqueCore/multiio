@@ -1,11 +1,8 @@
-//! Async input provider trait definition.
-
 use std::fmt::Debug;
 
 use async_trait::async_trait;
 use tokio::io::AsyncRead;
 
-/// Trait for asynchronous input providers.
 #[async_trait]
 pub trait AsyncInputProvider: Send + Sync + Debug {
     /// Returns a unique identifier for this input source.

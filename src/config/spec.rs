@@ -1,11 +1,8 @@
-//! Input and output specifications.
-
 use std::sync::Arc;
 
 use crate::format::FormatKind;
 use crate::io::{InputProvider, OutputTarget};
 
-/// Policy for handling existing output files.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum FileExistsPolicy {
     /// Overwrite existing files
@@ -31,7 +28,6 @@ impl std::str::FromStr for FileExistsPolicy {
     }
 }
 
-/// Specification for a single input source.
 #[derive(Debug, Clone)]
 pub struct InputSpec {
     /// Raw input argument or configuration string
@@ -45,7 +41,6 @@ pub struct InputSpec {
 }
 
 impl InputSpec {
-    /// Create a new input specification.
     pub fn new(raw: impl Into<String>, provider: Arc<dyn InputProvider>) -> Self {
         Self {
             raw: raw.into(),
@@ -68,7 +63,6 @@ impl InputSpec {
     }
 }
 
-/// Specification for a single output target.
 #[derive(Debug, Clone)]
 pub struct OutputSpec {
     /// Raw output argument or configuration string
@@ -84,7 +78,6 @@ pub struct OutputSpec {
 }
 
 impl OutputSpec {
-    /// Create a new output specification.
     pub fn new(raw: impl Into<String>, target: Arc<dyn OutputTarget>) -> Self {
         Self {
             raw: raw.into(),

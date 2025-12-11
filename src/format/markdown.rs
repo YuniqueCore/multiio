@@ -1,5 +1,3 @@
-//! Markdown format implementation.
-
 use serde::{Serialize, de::DeserializeOwned};
 
 use super::FormatError;

@@ -78,7 +78,6 @@ impl std::fmt::Debug for CustomFormat {
 }
 
 impl CustomFormat {
-    /// Create a new custom format with the given name and extensions.
     pub fn new(name: &'static str, extensions: &'static [&'static str]) -> Self {
         Self {
             name,

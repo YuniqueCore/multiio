@@ -1,5 +1,3 @@
-//! Pipeline configuration for defining I/O workflows.
-
 use serde::Deserialize;
 
 /// Configuration for an entire I/O pipeline.
@@ -19,7 +17,6 @@ pub struct PipelineConfig {
     pub format_order: Option<Vec<String>>,
 }
 
-/// Configuration for a single input source.
 #[derive(Debug, Clone, Deserialize)]
 pub struct InputConfig {
     /// Unique identifier for this input
@@ -37,7 +34,6 @@ pub struct InputConfig {
     pub format: Option<String>,
 }
 
-/// Configuration for a single output target.
 #[derive(Debug, Clone, Deserialize)]
 pub struct OutputConfig {
     /// Unique identifier for this output
@@ -56,7 +52,6 @@ pub struct OutputConfig {
 }
 
 impl PipelineConfig {
-    /// Create a new empty pipeline configuration.
     pub fn new() -> Self {
         Self::default()
     }

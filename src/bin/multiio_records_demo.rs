@@ -23,8 +23,6 @@ fn run() -> Result<(), Box<dyn Error>> {
         None => return Err("missing <input> argument".into()),
     };
 
-    // Collect all remaining arguments as additional inputs so that the demo can
-    // stream records from multiple sources.
     let mut inputs = vec![first_input];
     inputs.extend(args);
 

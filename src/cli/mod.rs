@@ -41,37 +41,31 @@ pub struct InputArgs {
 }
 
 impl InputArgs {
-    /// Create new empty input arguments.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Add an input path.
     pub fn with_input(mut self, path: impl Into<String>) -> Self {
         self.inputs.push(path.into());
         self
     }
 
-    /// Set explicit input format.
     pub fn with_format(mut self, format: impl Into<String>) -> Self {
         self.input_format = Some(format.into());
         self
     }
 
-    /// Parse the format string into FormatKind.
     pub fn format_kind(&self) -> Option<FormatKind> {
         self.input_format
             .as_ref()
             .and_then(|s| s.parse::<FormatKind>().ok())
     }
 
-    /// Check if reading from stdin.
     pub fn is_stdin(&self) -> bool {
         self.inputs.iter().any(|s| s == "-")
     }
 }
 
-/// Common output arguments for CLI applications.
 #[derive(Debug, Clone, Default)]
 pub struct OutputArgs {
     /// Output file paths. Use "-" for stdout.
@@ -85,12 +79,10 @@ pub struct OutputArgs {
 }
 
 impl OutputArgs {
-    /// Create new empty output arguments.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Add an output path.
     pub fn with_output(mut self, path: impl Into<String>) -> Self {
         self.outputs.push(path.into());
         self

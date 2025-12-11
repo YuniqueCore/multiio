@@ -1,5 +1,3 @@
-//! Async input and output specifications.
-
 use std::sync::Arc;
 
 use crate::format::FormatKind;
@@ -7,7 +5,6 @@ use crate::io::{AsyncInputProvider, AsyncOutputTarget};
 
 use super::FileExistsPolicy;
 
-/// Async specification for a single input source.
 #[derive(Debug, Clone)]
 pub struct AsyncInputSpec {
     /// Raw input argument or configuration string
@@ -21,7 +18,6 @@ pub struct AsyncInputSpec {
 }
 
 impl AsyncInputSpec {
-    /// Create a new async input specification.
     pub fn new(raw: impl Into<String>, provider: Arc<dyn AsyncInputProvider>) -> Self {
         Self {
             raw: raw.into(),
@@ -44,7 +40,6 @@ impl AsyncInputSpec {
     }
 }
 
-/// Async specification for a single output target.
 #[derive(Debug, Clone)]
 pub struct AsyncOutputSpec {
     /// Raw output argument or configuration string
@@ -60,7 +55,6 @@ pub struct AsyncOutputSpec {
 }
 
 impl AsyncOutputSpec {
-    /// Create a new async output specification.
     pub fn new(raw: impl Into<String>, target: Arc<dyn AsyncOutputTarget>) -> Self {
         Self {
             raw: raw.into(),
