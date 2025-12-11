@@ -18,18 +18,20 @@ fn run() -> Result<(), Box<dyn Error>> {
         None => return Err("missing <mode> argument (json|csv|auto)".into()),
     };
 
-    let input = match args.next() {
+    let first_input = match args.next() {
         Some(p) => p,
         None => return Err("missing <input> argument".into()),
     };
 
-    if args.next().is_some() {
-        return Err("too many arguments".into());
-    }
+    // Collect all remaining arguments as additional inputs so that the demo can
+    // stream records from multiple sources.
+    let mut inputs = vec![first_input];
+    inputs.extend(args);
 
-    let builder = MultiioBuilder::default()
-        .add_input(input)
-        .with_mode(ErrorPolicy::FastFail);
+    let mut builder = MultiioBuilder::default().with_mode(ErrorPolicy::FastFail);
+    for input in inputs {
+        builder = builder.add_input(input);
+    }
 
     let engine = builder.build()?;
 

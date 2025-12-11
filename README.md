@@ -98,17 +98,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Features
 
-| Feature     | Description              | Default |
-| ----------- | ------------------------ | ------- |
-| `json`      | JSON format support      | ✓       |
-| `yaml`      | YAML format support      | ✓       |
-| `csv`       | CSV format support       | ✓       |
-| `plaintext` | Plaintext format support | ✓       |
-| `xml`       | XML format support       |         |
-| `markdown`  | Markdown format support  |         |
-| `async`     | Async I/O with Tokio     |         |
-| `miette`    | Pretty error reporting   |         |
-| `full`      | All features             |         |
+| Feature     | Description               | Default |
+| ----------- | ------------------------- | ------- |
+| `json`      | JSON format support       | ✓       |
+| `yaml`      | YAML format support       | ✓       |
+| `csv`       | CSV format support        | ✓       |
+| `plaintext` | Plaintext format support  | ✓       |
+| `toml`      | TOML format support       | ✓       |
+| `ini`       | INI/".ini" config support | ✓       |
+| `xml`       | XML format support        |         |
+| `markdown`  | Markdown format support   |         |
+| `async`     | Async I/O with Tokio      |         |
+| `miette`    | Pretty error reporting    |         |
+| `full`      | All features              |         |
 
 ## Custom formats
 
@@ -219,6 +221,142 @@ let engine = MultiioBuilder::new(registry)
 ```
 
 With the `miette` feature, errors can be displayed with pretty formatting.
+
+## CLI binaries
+
+multiio ships with a few small CLI binaries that exercise the core APIs and
+serve as real-world examples:
+
+- `multiio_pipeline`
+  - Sync pipeline runner driven by a YAML config file (see "Pipeline
+    configuration" above).
+  - Used in the e2e tests under `e2e/tests/test_*.py` to verify 1->N, N->1, and
+    N->N topologies across JSON/YAML/CSV/TOML/INI.
+- `multiio_async_pipeline`
+  - Async variant of the pipeline runner. Takes the same YAML config format but
+    runs on top of `MultiioAsyncBuilder`.
+- `multiio_manual`
+  - Minimal non-pipeline CLI for quick format conversions:
+    - `multiio_manual <input> <output>`
+    - `multiio_manual --multi-in <output> <input1> <input2> [...]`
+  - Formats are inferred from file extensions and feature flags
+    (JSON/YAML/CSV/TOML/INI/plaintext).
+- `multiio_records_demo`
+  - Demo CLI for the streaming/records APIs (`read_json_records`,
+    `read_csv_records`, `read_records`).
+  - Prints one JSON document per record (NDJSON) to stdout:
+    - `multiio_records_demo json <input.jsonl>`
+    - `multiio_records_demo csv <input.csv>`
+    - `multiio_records_demo auto <input1> <input2> [...]` (mixed
+      JSONL/CSV/YAML).
+
+All binaries are optional and can be enabled/disabled via Cargo features and bin
+targets in `Cargo.toml`.
+
+### Format matrix
+
+The following table summarizes which formats and engine modes each CLI uses by
+default (assuming the corresponding Cargo features are enabled):
+
+| CLI                      | Sync | Async | JSON | YAML | CSV | TOML | INI | Plaintext |
+| ------------------------ | ---- | ----- | ---- | ---- | --- | ---- | --- | --------- |
+| `multiio_pipeline`       | ✓    |       | ✓    | ✓    | ✓   | ✓    | ✓   | ✓         |
+| `multiio_async_pipeline` |      | ✓     | ✓    | ✓    | ✓   | ✓    | ✓   | ✓         |
+| `multiio_manual`         | ✓    |       | ✓    | ✓    | ✓   | ✓    | ✓   | ✓         |
+| `multiio_records_demo`   | ✓    |       | ✓    | ✓    | ✓   |      |     |           |
+
+Notes:
+
+- Actual availability depends on enabling the corresponding Cargo features (see
+  the Features table above).
+- `multiio_records_demo` focuses on the streaming/records APIs and is intended
+  primarily for JSONL/NDJSON logs, CSV rows and YAML documents.
+
+## E2E tests
+
+The repository contains a Python/pytest-based end-to-end (e2e) test harness in
+the `e2e/` directory. It drives the CLI binaries, compares outputs against
+golden files, and exercises real filesystem I/O.
+
+Directory layout:
+
+- `e2e/data/input/<scenario>/` – input files for a given scenario
+- `e2e/data/output/<scenario>/` – outputs generated during tests
+- `e2e/data/output/baseline/<scenario>/` – golden/baseline outputs
+- `e2e/tests/` – pytest test cases and helpers
+
+Some representative scenarios:
+
+- Pipeline topologies
+  - 1->N, N->1 and N->N flows using `multiio_pipeline` (sync) and
+    `multiio_async_pipeline` (async).
+  - Mixes JSON, YAML, CSV, plaintext, TOML and INI formats.
+- Format conversions
+  - JSON<->YAML/CSV/TOML/INI and cross-format conversions such as YAML->TOML or
+    TOML->INI.
+- Error paths
+  - Invalid inputs, unknown/disabled formats, and conflicting outputs are
+    covered to ensure good error reporting.
+- Manual CLI
+  - `multiio_manual` is tested for 1->1 and multi-in->1 conversions, including
+    TOML/INI inputs.
+- Records demo
+  - `multiio_records_demo` is tested with JSONL, CSV and mixed JSONL/CSV/YAML
+    inputs to validate the streaming/records APIs in a CLI setting.
+
+Refer to the files under `e2e/tests/` for concrete test cases and example
+pipeline configurations.
+
+## Usage examples
+
+### Example: Streaming NDJSON logs
+
+Given a log file `logs.jsonl` (one JSON object per line), you can stream and
+filter records using the records demo CLI plus standard tools such as `jq`:
+
+```bash
+multiio_records_demo json logs.jsonl \
+  | jq 'select(.level == "error")'
+```
+
+This keeps the CLI focused on reliable I/O and format handling while leaving
+domain-specific querying to dedicated tools.
+
+### Example: Aggregating JSON/TOML/INI configs
+
+You can aggregate configuration files from multiple formats into a single JSON
+file using the pipeline runner. For example, a `configs.yaml` pipeline:
+
+```yaml
+inputs:
+  - id: json
+    kind: file
+    path: config.json
+    format: json
+  - id: toml
+    kind: file
+    path: config.toml
+    format: toml
+  - id: ini
+    kind: file
+    path: config.ini
+    format: ini
+outputs:
+  - id: merged
+    kind: file
+    path: merged.json
+    format: json
+error_policy: fast_fail
+```
+
+Running:
+
+```bash
+multiio_pipeline configs.yaml
+```
+
+will read all three config files and write them as a JSON sequence (or array),
+ready for further processing or inspection.
 
 ## License
 

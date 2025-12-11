@@ -1,11 +1,9 @@
-[
-    {
-        "app": {
-            "name": "multiio",
-            "version": "1"
-        },
-        "feature": {
-            "enabled": "true"
-        }
+{
+    "app": {
+        "name": "multiio",
+        "version": "1"
+    },
+    "feature": {
+        "enabled": "true"
     }
-]
+}
