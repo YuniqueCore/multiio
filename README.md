@@ -14,7 +14,7 @@ and asynchronous I/O patterns.
 - **Multi-input/Multi-output**: Read from and write to multiple sources
   simultaneously
 - **Format Abstraction**: Built-in support for JSON, YAML, CSV, XML, Markdown,
-  and plaintext
+  TOML, INI, and plaintext
 - **Custom Formats**: Register your own formats via `CustomFormat` and
   `FormatRegistry`, including custom file extensions
 - **Sync and Async**: Both synchronous and asynchronous I/O support
@@ -28,7 +28,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-multiio = "0.1"
+multiio = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 ```
 
@@ -66,7 +66,7 @@ Enable the `async` feature:
 
 ```toml
 [dependencies]
-multiio = { version = "0.1", features = ["async"] }
+multiio = { version = "0.2", features = ["async"] }
 ```
 
 ```rust
@@ -203,7 +203,8 @@ engine.write_all(&values)?;
            ▼                            ▼
 ┌─────────────────────────────────────────────────────┐
 │                   FormatRegistry                     │
-│     (JSON, YAML, CSV, XML, Markdown, Plaintext)     │
+│ (JSON, YAML, CSV, XML, Markdown, Plaintext, TOML,   │
+│                       INI)                           │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -271,6 +272,10 @@ Notes:
   the Features table above).
 - `multiio_records_demo` focuses on the streaming/records APIs and is intended
   primarily for JSONL/NDJSON logs, CSV rows and YAML documents.
+- For `multiio_pipeline`, `multiio_async_pipeline`, and `multiio_manual`,
+  single- record datasets (such as config-style JSON/TOML/INI documents or a
+  single plaintext blob) are written as a single value rather than a one-element
+  array; multi-record datasets continue to be written as arrays.
 
 ## E2E tests
 
@@ -355,8 +360,8 @@ Running:
 multiio_pipeline configs.yaml
 ```
 
-will read all three config files and write them as a JSON sequence (or array),
-ready for further processing or inspection.
+will read all three config files and write them as a single JSON array, ready
+for further processing or inspection.
 
 ## License
 
