@@ -122,29 +122,43 @@ impl AsyncFormatRegistry {
 pub fn default_async_registry() -> AsyncFormatRegistry {
     let mut registry = AsyncFormatRegistry::new();
 
-    #[cfg(feature = "json")]
-    registry.register(FormatKind::Json);
-
-    #[cfg(feature = "yaml")]
-    registry.register(FormatKind::Yaml);
-
-    #[cfg(feature = "toml")]
-    registry.register(FormatKind::Toml);
-
-    #[cfg(feature = "csv")]
-    registry.register(FormatKind::Csv);
-
-    #[cfg(feature = "xml")]
-    registry.register(FormatKind::Xml);
-
-    #[cfg(feature = "ini")]
-    registry.register(FormatKind::Ini);
-
-    #[cfg(feature = "plaintext")]
-    registry.register(FormatKind::Plaintext);
-
-    #[cfg(feature = "markdown")]
-    registry.register(FormatKind::Markdown);
+    for kind in super::DEFAULT_FORMAT_ORDER {
+        match kind {
+            FormatKind::Json => {
+                #[cfg(feature = "json")]
+                registry.register(FormatKind::Json);
+            }
+            FormatKind::Yaml => {
+                #[cfg(feature = "yaml")]
+                registry.register(FormatKind::Yaml);
+            }
+            FormatKind::Toml => {
+                #[cfg(feature = "toml")]
+                registry.register(FormatKind::Toml);
+            }
+            FormatKind::Csv => {
+                #[cfg(feature = "csv")]
+                registry.register(FormatKind::Csv);
+            }
+            FormatKind::Xml => {
+                #[cfg(feature = "xml")]
+                registry.register(FormatKind::Xml);
+            }
+            FormatKind::Ini => {
+                #[cfg(feature = "ini")]
+                registry.register(FormatKind::Ini);
+            }
+            FormatKind::Markdown => {
+                #[cfg(feature = "markdown")]
+                registry.register(FormatKind::Markdown);
+            }
+            FormatKind::Plaintext => {
+                #[cfg(feature = "plaintext")]
+                registry.register(FormatKind::Plaintext);
+            }
+            FormatKind::Custom(_) => {}
+        }
+    }
 
     registry
 }

@@ -8,7 +8,7 @@ use crate::config::{
 };
 use crate::engine::IoEngine;
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
-use crate::format::{CustomFormat, FormatKind, FormatRegistry};
+use crate::format::{CustomFormat, DEFAULT_FORMAT_ORDER, FormatKind, FormatRegistry};
 use crate::io::{FileInput, FileOutput, InputProvider, OutputTarget, StdinInput, StdoutOutput};
 
 pub struct MultiioBuilder {
@@ -32,8 +32,8 @@ impl MultiioBuilder {
             output_specs: Vec::new(),
             registry,
             error_policy: ErrorPolicy::Accumulate,
-            default_input_formats: vec![FormatKind::Json, FormatKind::Yaml, FormatKind::Plaintext],
-            default_output_formats: vec![FormatKind::Json, FormatKind::Yaml, FormatKind::Plaintext],
+            default_input_formats: DEFAULT_FORMAT_ORDER.to_vec(),
+            default_output_formats: DEFAULT_FORMAT_ORDER.to_vec(),
             file_exists_policy: FileExistsPolicy::Overwrite,
         }
     }
@@ -361,5 +361,18 @@ impl MultiioBuilder {
 impl Default for MultiioBuilder {
     fn default() -> Self {
         MultiioBuilder::new(crate::format::default_registry())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::format::{DEFAULT_FORMAT_ORDER, default_registry};
+
+    #[test]
+    fn builder_defaults_match_default_format_order() {
+        let builder = MultiioBuilder::new(default_registry());
+        assert_eq!(builder.default_input_formats, DEFAULT_FORMAT_ORDER);
+        assert_eq!(builder.default_output_formats, DEFAULT_FORMAT_ORDER);
     }
 }

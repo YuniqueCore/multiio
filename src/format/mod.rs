@@ -64,9 +64,137 @@ impl std::fmt::Display for FormatKind {
 
 impl Copy for FormatKind {}
 
+/// Central spec for all builtin (non-custom) formats.
+///
+/// Fields: (Category, Variant, feature, module, display, extensions, aliases)
+macro_rules! format_spec {
+    // Allow passing extra arguments through to the projection macro.
+    ($mac:ident ( $($args:tt)* )) => {
+        $mac! {
+            $($args)*
+            (Structured, Json,      "json",      json,      "json",      ["json"],            ["json"])
+            (Structured, Yaml,      "yaml",      yaml,      "yaml",      ["yaml", "yml"],    ["yaml", "yml"])
+            (Structured, Toml,      "toml",      toml,      "toml",      ["toml"],            ["toml"])
+            (Structured, Ini,       "ini",       ini,       "ini",       ["ini"],             ["ini"])
+            (Other,      Csv,       "csv",       csv,       "csv",       ["csv"],             ["csv"])
+            (Other,      Xml,       "xml",       xml,       "xml",       ["xml"],             ["xml"])
+            (Other,      Markdown,  "markdown",  markdown,  "markdown",  ["md", "markdown"], ["markdown", "md"])
+            (Other,      Plaintext, "plaintext", plaintext, "plaintext", ["txt", "text"],    ["plaintext", "text", "txt"])
+        }
+    };
+
+    ($mac:ident) => {
+        $mac! {
+            (Structured, Json,      "json",      json,      "json",      ["json"],            ["json"])
+            (Structured, Yaml,      "yaml",      yaml,      "yaml",      ["yaml", "yml"],    ["yaml", "yml"])
+            (Structured, Toml,      "toml",      toml,      "toml",      ["toml"],            ["toml"])
+            (Structured, Ini,       "ini",       ini,       "ini",       ["ini"],             ["ini"])
+            (Other,      Csv,       "csv",       csv,       "csv",       ["csv"],             ["csv"])
+            (Other,      Xml,       "xml",       xml,       "xml",       ["xml"],             ["xml"])
+            (Other,      Markdown,  "markdown",  markdown,  "markdown",  ["md", "markdown"], ["markdown", "md"])
+            (Other,      Plaintext, "plaintext", plaintext, "plaintext", ["txt", "text"],    ["plaintext", "text", "txt"])
+        }
+    };
+}
+
+// Projection: default order = all kinds in declaration order.
+macro_rules! define_default_order_from_spec {
+    ( $(($cat:ident, $kind:ident, $feat:literal, $module:ident,
+        $display:literal, [$($ext:literal),*], [$($alias:literal),*]))* ) => {
+        pub(crate) const DEFAULT_FORMAT_ORDER: &[FormatKind] = &[
+            $( FormatKind::$kind ),*
+        ];
+    };
+}
+
+// Projection: structured-text formats = only `Structured` entries, same order.
+// NOTE: This pattern assumes that all `Structured` entries appear before `Other`
+// entries in `format_spec!`. Tests assert that structured formats are a prefix
+// of `DEFAULT_FORMAT_ORDER`, so reordering must respect this invariant.
+macro_rules! define_structured_text_from_spec {
+    (
+        $(
+            (Structured, $kind:ident, $feat:literal, $module:ident,
+             $display:literal, [$($ext:literal),*], [$($alias:literal),*])
+        )*
+        $(
+            (Other, $other_kind:ident, $other_feat:literal, $other_module:ident,
+             $other_display:literal, [$($other_ext:literal),*], [$($other_alias:literal),*])
+        )*
+    ) => {
+        pub(crate) const STRUCTURED_TEXT_FORMATS: &[FormatKind] = &[
+            $( FormatKind::$kind, )*
+        ];
+    };
+}
+
+format_spec!(define_default_order_from_spec);
+format_spec!(define_structured_text_from_spec);
+
+// Projection: body for `FormatKind::extensions`.
+macro_rules! impl_formatkind_extensions_body {
+    ($self:ident
+        $(($cat:ident, $kind:ident, $feat:literal, $module:ident,
+           $display:literal, [$($ext:literal),*], [$($alias:literal),*]))*
+    ) => {{
+        match $self {
+            $( FormatKind::$kind => &[$($ext),*], )*
+            FormatKind::Custom(_) => &[],
+        }
+    }};
+}
+
+// Projection: body for `FormatKind::is_available`.
+macro_rules! impl_formatkind_is_available_body {
+    ($self:ident
+        $(($cat:ident, $kind:ident, $feat:literal, $module:ident,
+           $display:literal, [$($ext:literal),*], [$($alias:literal),*]))*
+    ) => {{
+        match $self {
+            $(
+                #[cfg(feature = $feat)]
+                FormatKind::$kind => true,
+                #[cfg(not(feature = $feat))]
+                FormatKind::$kind => false,
+            )*
+            // Custom formats are always considered available
+            // (availability is determined by registration)
+            FormatKind::Custom(_) => true,
+        }
+    }};
+}
+
+// Projection: body for `FromStr` implementation.
+macro_rules! impl_formatkind_from_str_body {
+    ($lower:ident
+        $(($cat:ident, $kind:ident, $feat:literal, $module:ident,
+           $display:literal, [$($ext:literal),*], [$($alias:literal),*]))*
+    ) => {{
+        let kind = match $lower.as_str() {
+            $(
+                $( $alias )|* => FormatKind::$kind,
+            )*
+            _ => return Err(()),
+        };
+        Ok(kind)
+    }};
+}
+
 impl FormatKind {
     pub fn custom(name: &'static str) -> Self {
         FormatKind::Custom(name)
+    }
+
+    /// Get file extensions for this format.
+    /// Note: For custom formats, this returns an empty slice.
+    /// Use FormatRegistry to get extensions for custom formats.
+    pub fn extensions(&self) -> &'static [&'static str] {
+        format_spec!(impl_formatkind_extensions_body(self))
+    }
+
+    /// Check if this format is available (feature enabled).
+    pub fn is_available(&self) -> bool {
+        format_spec!(impl_formatkind_is_available_body(self))
     }
 }
 
@@ -84,86 +212,7 @@ impl std::str::FromStr for FormatKind {
             return Ok(FormatKind::Custom(leaked));
         }
 
-        let kind = match lower.as_str() {
-            "plaintext" | "text" | "txt" => FormatKind::Plaintext,
-            "json" => FormatKind::Json,
-            "yaml" | "yml" => FormatKind::Yaml,
-            "xml" => FormatKind::Xml,
-            "csv" => FormatKind::Csv,
-            "markdown" | "md" => FormatKind::Markdown,
-            "toml" => FormatKind::Toml,
-            "ini" => FormatKind::Ini,
-            _ => return Err(()),
-        };
-        Ok(kind)
-    }
-}
-
-impl FormatKind {
-    /// Get file extensions for this format.
-    /// Note: For custom formats, this returns an empty slice.
-    /// Use FormatRegistry to get extensions for custom formats.
-    pub fn extensions(&self) -> &'static [&'static str] {
-        match self {
-            FormatKind::Plaintext => &["txt", "text"],
-            FormatKind::Json => &["json"],
-            FormatKind::Yaml => &["yaml", "yml"],
-            FormatKind::Xml => &["xml"],
-            FormatKind::Csv => &["csv"],
-            FormatKind::Markdown => &["md", "markdown"],
-            FormatKind::Toml => &["toml"],
-            FormatKind::Ini => &["ini"],
-            FormatKind::Custom(_) => &[],
-        }
-    }
-
-    /// Check if this format is available (feature enabled).
-    pub fn is_available(&self) -> bool {
-        match self {
-            #[cfg(feature = "json")]
-            FormatKind::Json => true,
-            #[cfg(not(feature = "json"))]
-            FormatKind::Json => false,
-
-            #[cfg(feature = "yaml")]
-            FormatKind::Yaml => true,
-            #[cfg(not(feature = "yaml"))]
-            FormatKind::Yaml => false,
-
-            #[cfg(feature = "csv")]
-            FormatKind::Csv => true,
-            #[cfg(not(feature = "csv"))]
-            FormatKind::Csv => false,
-
-            #[cfg(feature = "xml")]
-            FormatKind::Xml => true,
-            #[cfg(not(feature = "xml"))]
-            FormatKind::Xml => false,
-
-            #[cfg(feature = "markdown")]
-            FormatKind::Markdown => true,
-            #[cfg(not(feature = "markdown"))]
-            FormatKind::Markdown => false,
-
-            #[cfg(feature = "toml")]
-            FormatKind::Toml => true,
-            #[cfg(not(feature = "toml"))]
-            FormatKind::Toml => false,
-
-            #[cfg(feature = "ini")]
-            FormatKind::Ini => true,
-            #[cfg(not(feature = "ini"))]
-            FormatKind::Ini => false,
-
-            #[cfg(feature = "plaintext")]
-            FormatKind::Plaintext => true,
-            #[cfg(not(feature = "plaintext"))]
-            FormatKind::Plaintext => false,
-
-            // Custom formats are always considered available
-            // (availability is determined by registration)
-            FormatKind::Custom(_) => true,
-        }
+        format_spec!(impl_formatkind_from_str_body(lower))
     }
 }
 
@@ -579,31 +628,75 @@ impl FormatRegistry {
 pub fn default_registry() -> FormatRegistry {
     let mut registry = FormatRegistry::new();
 
-    #[cfg(feature = "json")]
-    registry.register(FormatKind::Json);
-
-    #[cfg(feature = "yaml")]
-    registry.register(FormatKind::Yaml);
-
-    #[cfg(feature = "plaintext")]
-    registry.register(FormatKind::Plaintext);
-
-    #[cfg(feature = "csv")]
-    registry.register(FormatKind::Csv);
-
-    #[cfg(feature = "xml")]
-    registry.register(FormatKind::Xml);
-
-    #[cfg(feature = "markdown")]
-    registry.register(FormatKind::Markdown);
-
-    #[cfg(feature = "toml")]
-    registry.register(FormatKind::Toml);
-
-    #[cfg(feature = "ini")]
-    registry.register(FormatKind::Ini);
+    for kind in DEFAULT_FORMAT_ORDER {
+        match kind {
+            FormatKind::Json => {
+                #[cfg(feature = "json")]
+                registry.register(FormatKind::Json);
+            }
+            FormatKind::Yaml => {
+                #[cfg(feature = "yaml")]
+                registry.register(FormatKind::Yaml);
+            }
+            FormatKind::Toml => {
+                #[cfg(feature = "toml")]
+                registry.register(FormatKind::Toml);
+            }
+            FormatKind::Csv => {
+                #[cfg(feature = "csv")]
+                registry.register(FormatKind::Csv);
+            }
+            FormatKind::Xml => {
+                #[cfg(feature = "xml")]
+                registry.register(FormatKind::Xml);
+            }
+            FormatKind::Ini => {
+                #[cfg(feature = "ini")]
+                registry.register(FormatKind::Ini);
+            }
+            FormatKind::Markdown => {
+                #[cfg(feature = "markdown")]
+                registry.register(FormatKind::Markdown);
+            }
+            FormatKind::Plaintext => {
+                #[cfg(feature = "plaintext")]
+                registry.register(FormatKind::Plaintext);
+            }
+            FormatKind::Custom(_) => {}
+        }
+    }
 
     registry
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_format_order_is_expected() {
+        assert_eq!(
+            DEFAULT_FORMAT_ORDER,
+            &[
+                FormatKind::Json,
+                FormatKind::Yaml,
+                FormatKind::Toml,
+                FormatKind::Csv,
+                FormatKind::Xml,
+                FormatKind::Ini,
+                FormatKind::Markdown,
+                FormatKind::Plaintext,
+            ],
+        );
+    }
+
+    #[test]
+    fn structured_text_formats_are_prefix_of_default_order() {
+        assert_eq!(
+            STRUCTURED_TEXT_FORMATS,
+            &DEFAULT_FORMAT_ORDER[..STRUCTURED_TEXT_FORMATS.len()],
+        );
+    }
 }
 
 // Async format support

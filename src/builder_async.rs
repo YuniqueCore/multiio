@@ -9,8 +9,8 @@ use crate::config::{
 use crate::engine_async::AsyncIoEngine;
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
 use crate::format::{
-    AsyncFormatRegistry, CustomFormat, FormatKind, FormatRegistry, default_async_registry,
-    default_registry,
+    AsyncFormatRegistry, CustomFormat, DEFAULT_FORMAT_ORDER, FormatKind, FormatRegistry,
+    default_async_registry, default_registry,
 };
 use crate::io::{
     AsyncFileInput, AsyncFileOutput, AsyncInputProvider, AsyncOutputTarget, AsyncStdinInput,
@@ -46,8 +46,8 @@ impl MultiioAsyncBuilder {
             registry,
             sync_registry: default_registry(),
             error_policy: ErrorPolicy::Accumulate,
-            default_input_formats: vec![FormatKind::Json, FormatKind::Yaml, FormatKind::Plaintext],
-            default_output_formats: vec![FormatKind::Json, FormatKind::Yaml, FormatKind::Plaintext],
+            default_input_formats: DEFAULT_FORMAT_ORDER.to_vec(),
+            default_output_formats: DEFAULT_FORMAT_ORDER.to_vec(),
             file_exists_policy: FileExistsPolicy::Overwrite,
         }
     }
@@ -391,5 +391,18 @@ impl MultiioAsyncBuilder {
             format_candidates: self.default_output_formats.clone(),
             file_exists_policy,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::format::{DEFAULT_FORMAT_ORDER, default_async_registry};
+
+    #[test]
+    fn async_builder_defaults_match_default_format_order() {
+        let builder = MultiioAsyncBuilder::new(default_async_registry());
+        assert_eq!(builder.default_input_formats, DEFAULT_FORMAT_ORDER);
+        assert_eq!(builder.default_output_formats, DEFAULT_FORMAT_ORDER);
     }
 }

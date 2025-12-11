@@ -2,22 +2,58 @@ use std::io::Read;
 
 use serde::{Serialize, de::DeserializeOwned};
 
-use super::FormatError;
-
-// should try the all supported format firstly, if not specified format
+use super::{FormatError, FormatKind, STRUCTURED_TEXT_FORMATS};
 
 fn decode_from_string<T: DeserializeOwned>(s: String) -> Result<T, FormatError> {
-    // Try JSON first if available
-    #[cfg(feature = "json")]
-    {
-        if let Ok(v) = serde_json::from_str(&s) {
-            return Ok(v);
-        }
+    if let Some(v) = try_decode_structured::<T>(&s)? {
+        return Ok(v);
     }
 
     // Fall back to string deserializer
     let deserializer = serde::de::value::StringDeserializer::<serde::de::value::Error>::new(s);
     T::deserialize(deserializer).map_err(|e| FormatError::Serde(Box::new(e)))
+}
+
+fn try_decode_structured<T: DeserializeOwned>(s: &str) -> Result<Option<T>, FormatError> {
+    for kind in STRUCTURED_TEXT_FORMATS {
+        match kind {
+            FormatKind::Json => {
+                #[cfg(feature = "json")]
+                {
+                    if let Ok(v) = serde_json::from_str(s) {
+                        return Ok(Some(v));
+                    }
+                }
+            }
+            FormatKind::Yaml => {
+                #[cfg(feature = "yaml")]
+                {
+                    if let Ok(v) = serde_yaml::from_str(s) {
+                        return Ok(Some(v));
+                    }
+                }
+            }
+            FormatKind::Toml => {
+                #[cfg(feature = "toml")]
+                {
+                    if let Ok(v) = toml::from_str(s) {
+                        return Ok(Some(v));
+                    }
+                }
+            }
+            FormatKind::Ini => {
+                #[cfg(feature = "ini")]
+                {
+                    if let Ok(v) = serde_ini::from_str(s) {
+                        return Ok(Some(v));
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok(None)
 }
 
 pub(crate) fn deserialize<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, FormatError> {
