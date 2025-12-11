@@ -12,13 +12,17 @@ struct Record {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Load pipeline configuration from a YAML file
+    // Load pipeline configuration from a YAML string. The structure matches
+    // `PipelineConfig` / `InputConfig` / `OutputConfig` in `multiio::config`.
     let config_str = r#"
 inputs:
-  - path: "examples/data/config.json"
+  - id: config
+    kind: file
+    path: "examples/data/config.json"
     format: json
 outputs:
-  - path: "-"
+  - id: out
+    kind: stdout
     format: json
 error_policy: fast_fail
 "#;
