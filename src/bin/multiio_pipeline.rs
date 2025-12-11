@@ -39,7 +39,15 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         values = inner.clone();
     }
 
-    engine.write_all(&values)?;
+    // If there is only a single value after unwrapping, write it as a
+    // single record instead of a slice. This keeps config-style inputs
+    // (e.g. TOML/INI/JSON objects) as a single document and avoids
+    // formats like TOML rejecting top-level slices.
+    if values.len() == 1 {
+        engine.write_one_value(&values[0])?;
+    } else {
+        engine.write_all(&values)?;
+    }
 
     Ok(())
 }

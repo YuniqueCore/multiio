@@ -66,3 +66,13 @@ criterion = { version = "0.8", features = ["html_reports"] }
 [[bench]]
 name = "engine_read_write"
 harness = false
+
+[[bin]]
+name = "multiio_pipeline"
+path = "src/bin/multiio_pipeline.rs"
+required-features = ["json"]
+
+[[bin]]
+name = "multiio_async_pipeline"
+path = "src/bin/multiio_async_pipeline.rs"
+required-features = ["json", "async"]

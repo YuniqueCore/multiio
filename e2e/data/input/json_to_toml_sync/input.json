@@ -1,0 +1,5 @@
+{
+    "name": "config",
+    "enabled": true,
+    "retries": 3
+}

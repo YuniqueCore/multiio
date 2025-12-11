@@ -38,7 +38,11 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         values = inner.clone();
     }
 
-    engine.write_all(&values).await?;
+    if values.len() == 1 {
+        engine.write_one_value(&values[0]).await?;
+    } else {
+        engine.write_all(&values).await?;
+    }
 
     Ok(())
 }

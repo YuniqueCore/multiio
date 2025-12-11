@@ -26,7 +26,11 @@ fn run_one_to_one(input: String, output: String) -> Result<(), Box<dyn Error>> {
         values = inner.clone();
     }
 
-    engine.write_all(&values)?;
+    if values.len() == 1 {
+        engine.write_one_value(&values[0])?;
+    } else {
+        engine.write_all(&values)?;
+    }
 
     Ok(())
 }
@@ -50,7 +54,11 @@ fn run_many_to_one(inputs: Vec<String>, output: String) -> Result<(), Box<dyn Er
         values = inner.clone();
     }
 
-    engine.write_all(&values)?;
+    if values.len() == 1 {
+        engine.write_one_value(&values[0])?;
+    } else {
+        engine.write_all(&values)?;
+    }
 
     Ok(())
 }

@@ -145,3 +145,128 @@ format_order: ["json", "yaml", "csv", "plaintext"]
 
     compare_json_files(output1, baseline1)
     compare_json_files(output2, baseline2)
+
+
+def test_sync_toml_one_in_multi_out_json_yaml(tmp_path: Path, multiio_bin: Path) -> None:
+    """1 TOML input -> 2 outputs (json, yaml) using pipeline config."""
+    e2e = e2e_dir()
+    scenario = "toml_multi_outputs_sync"
+
+    input_file = e2e / "data" / "input" / scenario / "input.toml"
+    output_dir = e2e / "data" / "output" / scenario
+
+    pipeline_yaml = f"""\
+inputs:
+  - id: in
+    kind: file
+    path: {input_file}
+    format: toml
+outputs:
+  - id: out_json
+    kind: file
+    path: {output_dir / 'output.json'}
+    format: json
+  - id: out_yaml
+    kind: file
+    path: {output_dir / 'output.yaml'}
+    format: yaml
+error_policy: fast_fail
+format_order: ["toml", "json", "yaml", "plaintext"]
+"""
+
+    # First compare JSON structurally
+    run_pipeline_and_compare(
+        scenario=scenario,
+        pipeline_template=pipeline_yaml,
+        multiio_bin=multiio_bin,
+        tmp_path=tmp_path,
+        output_files={"out_json": "json"},
+        comparator="json",
+    )
+
+    # Then compare YAML as plain text
+    run_pipeline_and_compare(
+        scenario=scenario,
+        pipeline_template=pipeline_yaml,
+        multiio_bin=multiio_bin,
+        tmp_path=tmp_path,
+        output_files={"out_yaml": "yaml"},
+        comparator="text",
+    )
+
+
+def test_sync_json_to_toml_single_out(tmp_path: Path, multiio_bin: Path) -> None:
+    """JSON input -> TOML output (format conversion)."""
+    e2e = e2e_dir()
+    scenario = "json_to_toml_sync"
+
+    input_file = e2e / "data" / "input" / scenario / "input.json"
+    output_dir = e2e / "data" / "output" / scenario
+
+    pipeline_yaml = f"""\
+inputs:
+  - id: in
+    kind: file
+    path: {input_file}
+    format: json
+outputs:
+  - id: out
+    kind: file
+    path: {output_dir / 'output.toml'}
+    format: toml
+error_policy: fast_fail
+format_order: ["json", "toml", "yaml", "plaintext"]
+"""
+
+    # Compare TOML output as plain text
+    run_pipeline_and_compare(
+        scenario=scenario,
+        pipeline_template=pipeline_yaml,
+        multiio_bin=multiio_bin,
+        tmp_path=tmp_path,
+        output_files={"out": "toml"},
+        comparator="text",
+    )
+
+
+def test_sync_mixed_multi_in_single_out_json(tmp_path: Path, multiio_bin: Path) -> None:
+    """Mixed JSON/TOML/INI inputs -> single JSON output."""
+    e2e = e2e_dir()
+    scenario = "mixed_multi_in_single_out_sync"
+
+    input_json = e2e / "data" / "input" / scenario / "input_json.json"
+    input_toml = e2e / "data" / "input" / scenario / "input.toml"
+    input_ini = e2e / "data" / "input" / scenario / "input.ini"
+    output_dir = e2e / "data" / "output" / scenario
+
+    pipeline_yaml = f"""\
+inputs:
+  - id: json_in
+    kind: file
+    path: {input_json}
+    format: json
+  - id: toml_in
+    kind: file
+    path: {input_toml}
+    format: toml
+  - id: ini_in
+    kind: file
+    path: {input_ini}
+    format: ini
+outputs:
+  - id: out
+    kind: file
+    path: {output_dir / 'output.json'}
+    format: json
+error_policy: fast_fail
+format_order: ["json", "toml", "ini", "yaml", "plaintext"]
+"""
+
+    run_pipeline_and_compare(
+        scenario=scenario,
+        pipeline_template=pipeline_yaml,
+        multiio_bin=multiio_bin,
+        tmp_path=tmp_path,
+        output_files={"out": "json"},
+        comparator="json",
+    )

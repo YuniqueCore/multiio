@@ -1,0 +1,18 @@
+[
+    {
+        "kind": "json",
+        "value": 1
+    },
+    {
+        "source": {
+            "kind": "toml",
+            "value": 2
+        }
+    },
+    {
+        "source": {
+            "kind": "ini",
+            "value": "3"
+        }
+    }
+]

@@ -1,0 +1,7 @@
+users:
+  alice:
+    age: 30
+    email: alice@example.com
+  bob:
+    age: 25
+    email: bob@example.com
