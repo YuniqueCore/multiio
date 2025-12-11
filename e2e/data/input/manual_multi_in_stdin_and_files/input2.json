@@ -1,0 +1,8 @@
+{
+    "name": "bob",
+    "age": 25,
+    "meta": {
+        "active": false,
+        "groups": []
+    }
+}

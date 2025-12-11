@@ -1,0 +1,25 @@
+[
+    {
+        "name": "stdin",
+        "age": 99
+    },
+    {
+        "name": "alice",
+        "age": 30,
+        "meta": {
+            "active": true,
+            "groups": [
+                "admin",
+                "dev"
+            ]
+        }
+    },
+    {
+        "name": "bob",
+        "age": 25,
+        "meta": {
+            "active": false,
+            "groups": []
+        }
+    }
+]

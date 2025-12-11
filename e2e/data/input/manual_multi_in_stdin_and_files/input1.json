@@ -1,0 +1,11 @@
+{
+    "name": "alice",
+    "age": 30,
+    "meta": {
+        "active": true,
+        "groups": [
+            "admin",
+            "dev"
+        ]
+    }
+}
