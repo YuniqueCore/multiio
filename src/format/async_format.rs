@@ -148,5 +148,11 @@ pub fn default_async_registry() -> AsyncFormatRegistry {
     #[cfg(feature = "markdown")]
     registry.register(FormatKind::Markdown);
 
+    #[cfg(feature = "toml")]
+    registry.register(FormatKind::Toml);
+
+    #[cfg(feature = "ini")]
+    registry.register(FormatKind::Ini);
+
     registry
 }

@@ -14,12 +14,16 @@ pub use custom::CustomFormat;
 // Per-format implementations
 #[cfg(feature = "csv")]
 mod csv;
+#[cfg(feature = "ini")]
+mod ini;
 #[cfg(feature = "json")]
 mod json;
 #[cfg(feature = "markdown")]
 mod markdown;
 #[cfg(feature = "plaintext")]
 mod plaintext;
+#[cfg(feature = "toml")]
+mod toml;
 #[cfg(feature = "xml")]
 mod xml;
 #[cfg(feature = "yaml")]
@@ -43,6 +47,10 @@ pub enum FormatKind {
     Csv,
     /// Markdown format
     Markdown,
+    /// TOML format
+    Toml,
+    /// INI format
+    Ini,
     /// Custom format with a unique name
     Custom(&'static str),
 }
@@ -56,6 +64,8 @@ impl std::fmt::Display for FormatKind {
             FormatKind::Xml => write!(f, "xml"),
             FormatKind::Csv => write!(f, "csv"),
             FormatKind::Markdown => write!(f, "markdown"),
+            FormatKind::Toml => write!(f, "toml"),
+            FormatKind::Ini => write!(f, "ini"),
             FormatKind::Custom(name) => write!(f, "{}", name),
         }
     }
@@ -92,6 +102,8 @@ impl std::str::FromStr for FormatKind {
             "xml" => FormatKind::Xml,
             "csv" => FormatKind::Csv,
             "markdown" | "md" => FormatKind::Markdown,
+            "toml" => FormatKind::Toml,
+            "ini" => FormatKind::Ini,
             _ => return Err(()),
         };
         Ok(kind)
@@ -110,6 +122,8 @@ impl FormatKind {
             FormatKind::Xml => &["xml"],
             FormatKind::Csv => &["csv"],
             FormatKind::Markdown => &["md", "markdown"],
+            FormatKind::Toml => &["toml"],
+            FormatKind::Ini => &["ini"],
             FormatKind::Custom(_) => &[],
         }
     }
@@ -141,6 +155,16 @@ impl FormatKind {
             FormatKind::Markdown => true,
             #[cfg(not(feature = "markdown"))]
             FormatKind::Markdown => false,
+
+            #[cfg(feature = "toml")]
+            FormatKind::Toml => true,
+            #[cfg(not(feature = "toml"))]
+            FormatKind::Toml => false,
+
+            #[cfg(feature = "ini")]
+            FormatKind::Ini => true,
+            #[cfg(not(feature = "ini"))]
+            FormatKind::Ini => false,
 
             #[cfg(feature = "plaintext")]
             FormatKind::Plaintext => true,
@@ -203,6 +227,12 @@ pub fn deserialize<T: DeserializeOwned>(kind: FormatKind, bytes: &[u8]) -> Resul
         #[cfg(feature = "plaintext")]
         FormatKind::Plaintext => plaintext::deserialize(bytes),
 
+        #[cfg(feature = "toml")]
+        FormatKind::Toml => toml::deserialize(bytes),
+
+        #[cfg(feature = "ini")]
+        FormatKind::Ini => ini::deserialize(bytes),
+
         #[allow(unreachable_patterns)]
         _ => Err(FormatError::NotEnabled(kind)),
     }
@@ -228,6 +258,12 @@ pub fn serialize<T: Serialize>(kind: FormatKind, value: &T) -> Result<Vec<u8>, F
 
         #[cfg(feature = "plaintext")]
         FormatKind::Plaintext => plaintext::serialize(value),
+
+        #[cfg(feature = "toml")]
+        FormatKind::Toml => toml::serialize(value),
+
+        #[cfg(feature = "ini")]
+        FormatKind::Ini => ini::serialize(value),
 
         #[allow(unreachable_patterns)]
         _ => Err(FormatError::NotEnabled(kind)),
@@ -578,6 +614,12 @@ pub fn default_registry() -> FormatRegistry {
 
     #[cfg(feature = "markdown")]
     registry.register(FormatKind::Markdown);
+
+    #[cfg(feature = "toml")]
+    registry.register(FormatKind::Toml);
+
+    #[cfg(feature = "ini")]
+    registry.register(FormatKind::Ini);
 
     registry
 }
