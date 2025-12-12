@@ -23,7 +23,7 @@ def multiio_bin() -> Path:
     """Ensure the multiio_pipeline binary is built once per test session (sync)."""
     root = project_root()
     result = subprocess.run(
-        ["cargo", "build", "--quiet", "--bin", "multiio_pipeline"],
+        ["cargo", "build", "--quiet", "--bin", "multiio_pipeline", "--features", "full"],
         cwd=root,
         capture_output=True,
         text=True,
@@ -49,7 +49,7 @@ def multiio_async_bin() -> Path:
             "--bin",
             "multiio_async_pipeline",
             "--features",
-            "async",
+            "full",
         ],
         cwd=root,
         capture_output=True,
@@ -69,7 +69,7 @@ def multiio_manual_bin() -> Path:
     """Ensure the multiio_manual binary is built once per test session (sync, non-pipeline)."""
     root = project_root()
     result = subprocess.run(
-        ["cargo", "build", "--quiet", "--bin", "multiio_manual"],
+        ["cargo", "build", "--quiet", "--bin", "multiio_manual", "--features", "full"],
         cwd=root,
         capture_output=True,
         text=True,
@@ -88,7 +88,7 @@ def multiio_records_demo_bin() -> Path:
     """Ensure the multiio_records_demo binary is built once per test session (records demo)."""
     root = project_root()
     result = subprocess.run(
-        ["cargo", "build", "--quiet", "--bin", "multiio_records_demo"],
+        ["cargo", "build", "--quiet", "--bin", "multiio_records_demo", "--features", "full"],
         cwd=root,
         capture_output=True,
         text=True,

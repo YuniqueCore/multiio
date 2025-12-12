@@ -28,6 +28,7 @@ fn cargo_check(no_default: bool, features: &[&str]) {
     }
 
     cmd.env("CARGO_TARGET_DIR", target_dir.path());
+    cmd.env("RUSTFLAGS", "-D warnings");
 
     let status = cmd.status().expect("run cargo check");
     assert!(
@@ -52,9 +53,11 @@ fn feature_matrix_compiles() {
     cargo_check(true, &["ini"]);
     cargo_check(true, &["xml"]);
     cargo_check(true, &["csv"]); // pulls json transitively
+    cargo_check(true, &["custom"]); // pulls json transitively
 
     // Multi-feature and umbrella sets.
     cargo_check(true, &["json", "yaml"]);
+    cargo_check(true, &["custom", "yaml"]);
     cargo_check(true, &["async"]);
     cargo_check(true, &["full"]);
 }

@@ -1,77 +1,85 @@
 //! Tests for IoEngine::read_stream and AsyncIoEngine::read_stream_async.
 
-use std::sync::Arc;
-
-use crate::config::{InputSpec, OutputSpec};
-use crate::error::{ErrorPolicy, Stage};
-use crate::io::InMemorySource;
-use crate::{FormatKind, IoEngine, default_registry};
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
-struct StreamConfig {
-    name: String,
-    value: i32,
-}
-
-fn make_sync_engine(inputs: Vec<InputSpec>) -> IoEngine {
-    let registry = default_registry();
-    let outputs: Vec<OutputSpec> = Vec::new();
-    IoEngine::new(registry, ErrorPolicy::Accumulate, inputs, outputs)
-}
-
 #[cfg(feature = "json")]
-#[test]
-fn sync_read_stream_returns_per_input_results() {
-    // One valid JSON input and two invalid ones
-    let ok_src = Arc::new(InMemorySource::from_string(
-        "ok",
-        r#"{"name": "ok", "value": 1}"#,
-    ));
-    let bad1_src = Arc::new(InMemorySource::from_string("bad1", "{not-json"));
-    let bad2_src = Arc::new(InMemorySource::from_string("bad2", "[1,2,,]"));
+mod sync_json_stream {
+    use std::sync::Arc;
 
-    let mk_spec = |raw: &str, src: Arc<InMemorySource>| {
-        InputSpec::new(raw, src)
-            .with_format(FormatKind::Json)
-            .with_candidates(vec![FormatKind::Json])
-    };
+    use crate::config::{InputSpec, OutputSpec};
+    use crate::error::{ErrorPolicy, Stage};
+    use crate::io::InMemorySource;
+    use crate::{FormatKind, IoEngine, default_registry};
+    use serde::{Deserialize, Serialize};
 
-    let engine = make_sync_engine(vec![
-        mk_spec("ok", ok_src),
-        mk_spec("bad1", bad1_src),
-        mk_spec("bad2", bad2_src),
-    ]);
-
-    let mut iter = engine.read_stream::<StreamConfig>();
-
-    // First item should be Ok
-    let first = iter.next().expect("one result");
-    let v = first.expect("first should be Ok");
-    assert_eq!(v.name, "ok");
-
-    // Next two should be parse errors
-    for expected_target in ["bad1", "bad2"] {
-        let res = iter.next().expect("more results");
-        let e = res.expect_err("expected error for bad input");
-        assert_eq!(e.stage, Stage::Parse);
-        assert_eq!(e.target, expected_target);
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct StreamConfig {
+        name: String,
+        value: i32,
     }
 
-    assert!(iter.next().is_none());
+    fn make_sync_engine(inputs: Vec<InputSpec>) -> IoEngine {
+        let registry = default_registry();
+        let outputs: Vec<OutputSpec> = Vec::new();
+        IoEngine::new(registry, ErrorPolicy::Accumulate, inputs, outputs)
+    }
+
+    #[test]
+    fn sync_read_stream_returns_per_input_results() {
+        // One valid JSON input and two invalid ones
+        let ok_src = Arc::new(InMemorySource::from_string(
+            "ok",
+            r#"{"name": "ok", "value": 1}"#,
+        ));
+        let bad1_src = Arc::new(InMemorySource::from_string("bad1", "{not-json"));
+        let bad2_src = Arc::new(InMemorySource::from_string("bad2", "[1,2,,]"));
+
+        let mk_spec = |raw: &str, src: Arc<InMemorySource>| {
+            InputSpec::new(raw, src)
+                .with_format(FormatKind::Json)
+                .with_candidates(vec![FormatKind::Json])
+        };
+
+        let engine = make_sync_engine(vec![
+            mk_spec("ok", ok_src),
+            mk_spec("bad1", bad1_src),
+            mk_spec("bad2", bad2_src),
+        ]);
+
+        let mut iter = engine.read_stream::<StreamConfig>();
+
+        // First item should be Ok
+        let first = iter.next().expect("one result");
+        let v = first.expect("first should be Ok");
+        assert_eq!(v.name, "ok");
+
+        // Next two should be parse errors
+        for expected_target in ["bad1", "bad2"] {
+            let res = iter.next().expect("more results");
+            let e = res.expect_err("expected error for bad input");
+            assert_eq!(e.stage, Stage::Parse);
+            assert_eq!(e.target, expected_target);
+        }
+
+        assert!(iter.next().is_none());
+    }
 }
 
 #[cfg(all(feature = "async", feature = "json"))]
 mod async_json_stream {
-    use super::*;
     use std::sync::Arc;
 
     use futures::StreamExt;
 
     use crate::config::AsyncInputSpec;
-    use crate::format::{CustomFormat, FormatError, FormatRegistry};
+    use crate::error::{ErrorPolicy, Stage};
     use crate::io::AsyncFileInput;
-    use crate::{AsyncIoEngine, default_async_registry};
+    use crate::{AsyncIoEngine, FormatKind, default_async_registry};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct StreamConfig {
+        name: String,
+        value: i32,
+    }
 
     #[tokio::test]
     async fn async_read_stream_async_returns_per_input_results() {
@@ -228,39 +236,49 @@ mod async_json_stream {
             vec!["a".to_string(), "b".to_string(), "c".to_string()]
         );
     }
+}
+
+#[cfg(all(feature = "async", feature = "custom"))]
+mod async_custom_stream {
+    use std::io::{BufRead, BufReader};
+    use std::sync::Arc;
+
+    use futures::StreamExt;
+
+    use crate::config::AsyncInputSpec;
+    use crate::error::ErrorPolicy;
+    use crate::format::{CustomFormat, FormatError, FormatRegistry};
+    use crate::io::AsyncFileInput;
+    use crate::{AsyncIoEngine, FormatKind, default_async_registry};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct StreamConfig {
+        name: String,
+        value: i32,
+    }
 
     #[tokio::test]
     async fn async_read_records_async_streams_custom_ndjson_via_bridge() {
         let dir = tempfile::tempdir().unwrap();
 
         let path = dir.path().join("rows.ndjson");
-        let jsonl = "{\"name\":\"foo\",\"value\":1}\n{\"name\":\"bar\",\"value\":2}\n";
-        tokio::fs::write(&path, jsonl).await.unwrap();
+        let ndjson = "{\"name\":\"foo\",\"value\":1}\n{\"name\":\"bar\",\"value\":2}\n";
+        tokio::fs::write(&path, ndjson).await.unwrap();
 
-        // Set up a sync registry with a custom NDJSON-like streaming format.
+        // Build a sync registry with a custom streaming decoder.
         let mut sync_registry = FormatRegistry::new();
+        sync_registry.register(FormatKind::Json);
 
-        let fmt = CustomFormat::new("ndjson", &["ndjson"])
-            .with_deserialize(|bytes| {
-                // Fallback non-streaming handler: parse a single JSON value
-                serde_json::from_slice(bytes).map_err(|e| FormatError::Serde(Box::new(e)))
-            })
-            .with_serialize(|value| {
-                serde_json::to_vec(value).map_err(|e| FormatError::Serde(Box::new(e)))
-            })
-            .with_stream_deserialize(|reader| {
-                use std::io::{BufRead, BufReader};
-
-                let buf = BufReader::new(reader);
-                let iter = buf.lines().map(|line_res| {
-                    let line = line_res.map_err(FormatError::Io)?;
-                    let value: serde_json::Value =
-                        serde_json::from_str(&line).map_err(|e| FormatError::Serde(Box::new(e)))?;
-                    Ok(value)
-                });
-
-                Box::new(iter) as Box<dyn Iterator<Item = Result<serde_json::Value, FormatError>>>
+        let fmt = CustomFormat::new("ndjson", &["ndjson"]).with_stream_deserialize(|reader| {
+            let iter = BufReader::new(reader).lines().map(|line| {
+                let line = line.map_err(FormatError::Io)?;
+                serde_json::from_str::<serde_json::Value>(&line)
+                    .map_err(|e| FormatError::Serde(Box::new(e)))
             });
+
+            Box::new(iter) as Box<dyn Iterator<Item = Result<serde_json::Value, FormatError>>>
+        });
 
         sync_registry.register_custom(fmt);
 
@@ -299,16 +317,23 @@ mod async_json_stream {
     }
 }
 
-#[cfg(feature = "async")]
+#[cfg(all(feature = "async", any(feature = "plaintext", feature = "yaml")))]
 mod async_non_json_stream {
-    use super::*;
     use std::sync::Arc;
 
     use futures::StreamExt;
 
     use crate::config::AsyncInputSpec;
+    use crate::error::ErrorPolicy;
     use crate::io::AsyncFileInput;
-    use crate::{AsyncIoEngine, default_async_registry};
+    use crate::{AsyncIoEngine, FormatKind, default_async_registry};
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Serialize, Deserialize, PartialEq)]
+    struct StreamConfig {
+        name: String,
+        value: i32,
+    }
 
     #[tokio::test]
     #[cfg(feature = "plaintext")]

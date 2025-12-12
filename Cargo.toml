@@ -17,6 +17,7 @@ ini = ["dep:serde_ini"]
 csv = ["dep:csv", "json"]
 xml = ["quick-xml"]
 plaintext = []
+custom = ["json"]
 
 async = ["tokio", "async-trait", "futures"]
 miette = ["dep:miette"]
@@ -28,6 +29,7 @@ full = [
     "csv",
     "xml",
     "plaintext",
+    "custom",
     "async",
     "miette",
 ]
@@ -110,4 +112,4 @@ required-features = ["json"]
 [[example]]
 name = "custom_format"
 path = "examples/custom_format.rs"
-required-features = ["json"]
+required-features = ["custom"]
