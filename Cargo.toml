@@ -15,7 +15,7 @@ yaml = ["serde_yaml"]
 toml = ["dep:toml"]
 ini = ["dep:serde_ini"]
 csv = ["dep:csv", "json"]
-xml = ["quick-xml"]
+xml = ["dep:quick-xml"]
 plaintext = []
 custom = ["json"]
 
@@ -102,7 +102,7 @@ required-features = ["json", "async"]
 [[example]]
 name = "from_pipeline"
 path = "examples/from_pipeline.rs"
-required-features = ["json"]
+required-features = ["json", "yaml"]
 
 [[example]]
 name = "in_memory"

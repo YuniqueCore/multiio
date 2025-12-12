@@ -2,6 +2,8 @@
 //!
 //! Run with: cargo run --example from_pipeline
 
+#![cfg(all(feature = "json", feature = "yaml"))]
+
 use multiio::{ErrorPolicy, MultiioBuilder, PipelineConfig, default_registry};
 use serde::{Deserialize, Serialize};
 
