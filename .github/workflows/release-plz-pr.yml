@@ -1,0 +1,47 @@
+name: release-plz-pr
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "CHANGELOG.md"
+      - "multiio/CHANGELOG.md"
+      - "**/Cargo.toml"
+      - "Cargo.lock"
+      - "README*.md"
+  schedule:
+    - cron: "0 0 * * MON"
+  workflow_dispatch:
+
+jobs:
+  release-plz-pr:
+    name: Create Release PR
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+    concurrency:
+      group: release-plz-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_PLZ_PAT }}
+
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+
+      - name: Run release-plz PR
+        id: release_plz
+        uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_PAT }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
