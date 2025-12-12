@@ -1,3 +1,5 @@
+#![cfg(feature = "json")]
+
 use std::path::PathBuf;
 
 use crate::config::PipelineConfig;

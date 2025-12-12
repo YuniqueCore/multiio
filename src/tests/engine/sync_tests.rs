@@ -1,3 +1,5 @@
+#![cfg(feature = "json")]
+
 use std::sync::Arc;
 
 use crate::config::{FileExistsPolicy, InputSpec, OutputSpec};

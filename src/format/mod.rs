@@ -10,7 +10,9 @@ use std::io::Read;
 
 use paste::paste;
 
+#[cfg(feature = "json")]
 mod custom;
+#[cfg(feature = "json")]
 pub use custom::CustomFormat;
 
 // Per-format implementations
@@ -756,6 +758,7 @@ pub struct FormatRegistry {
     /// Registered built-in formats.
     formats: Vec<FormatKind>,
     /// Custom format handlers
+    #[cfg(feature = "json")]
     custom_formats: Vec<CustomFormat>,
 }
 
@@ -764,6 +767,7 @@ impl FormatRegistry {
     pub fn new() -> Self {
         Self {
             formats: Vec::new(),
+            #[cfg(feature = "json")]
             custom_formats: Vec::new(),
         }
     }
@@ -801,6 +805,7 @@ impl FormatRegistry {
     ///         })
     /// );
     /// ```
+    #[cfg(feature = "json")]
     pub fn register_custom(&mut self, format: CustomFormat) {
         // Also register the FormatKind::Custom variant
         let kind = FormatKind::Custom(format.name);
@@ -811,6 +816,7 @@ impl FormatRegistry {
     }
 
     /// Register a custom format handler (builder pattern).
+    #[cfg(feature = "json")]
     pub fn with_custom_format(mut self, format: CustomFormat) -> Self {
         self.register_custom(format);
         self
@@ -822,6 +828,7 @@ impl FormatRegistry {
     }
 
     /// Get the custom format handler for a format kind.
+    #[cfg(feature = "json")]
     pub fn get_custom(&self, name: &str) -> Option<&CustomFormat> {
         self.custom_formats.iter().find(|f| f.name == name)
     }
@@ -841,7 +848,8 @@ impl FormatRegistry {
             }
         }
 
-        // Check custom formats
+        // Check custom formats (requires `json` feature)
+        #[cfg(feature = "json")]
         for custom in &self.custom_formats {
             if custom.matches_extension(&ext_lower) {
                 return Some(FormatKind::Custom(custom.name));
@@ -877,6 +885,7 @@ impl FormatRegistry {
     }
 
     /// Get all registered custom formats.
+    #[cfg(feature = "json")]
     pub fn custom_formats(&self) -> &[CustomFormat] {
         &self.custom_formats
     }
@@ -892,12 +901,19 @@ impl FormatRegistry {
     ) -> Result<T, FormatError> {
         let kind = self.resolve(explicit, candidates)?;
 
-        // Handle custom formats
-        if let FormatKind::Custom(name) = &kind {
-            let custom = self
-                .get_custom(name)
-                .ok_or_else(|| FormatError::UnknownFormat(kind))?;
-            return custom.deserialize(bytes);
+        // Handle custom formats (requires `json` feature)
+        if let FormatKind::Custom(_name) = &kind {
+            #[cfg(feature = "json")]
+            {
+                let custom = self
+                    .get_custom(_name)
+                    .ok_or_else(|| FormatError::UnknownFormat(kind))?;
+                return custom.deserialize(bytes);
+            }
+            #[cfg(not(feature = "json"))]
+            {
+                return Err(FormatError::NotEnabled(kind));
+            }
         }
 
         // Handle built-in formats
@@ -915,12 +931,19 @@ impl FormatRegistry {
     ) -> Result<Vec<u8>, FormatError> {
         let kind = self.resolve(explicit, candidates)?;
 
-        // Handle custom formats
-        if let FormatKind::Custom(name) = &kind {
-            let custom = self
-                .get_custom(name)
-                .ok_or_else(|| FormatError::UnknownFormat(kind))?;
-            return custom.serialize(value);
+        // Handle custom formats (requires `json` feature)
+        if let FormatKind::Custom(_name) = &kind {
+            #[cfg(feature = "json")]
+            {
+                let custom = self
+                    .get_custom(_name)
+                    .ok_or_else(|| FormatError::UnknownFormat(kind))?;
+                return custom.serialize(value);
+            }
+            #[cfg(not(feature = "json"))]
+            {
+                return Err(FormatError::NotEnabled(kind));
+            }
         }
 
         // Handle built-in formats
@@ -992,25 +1015,32 @@ impl FormatRegistry {
         }
 
         if let FormatKind::Custom(name) = kind {
-            let custom = self
-                .get_custom(name)
-                .ok_or_else(|| FormatError::UnknownFormat(kind))?;
+            #[cfg(feature = "json")]
+            {
+                let custom = self
+                    .get_custom(name)
+                    .ok_or_else(|| FormatError::UnknownFormat(FormatKind::Custom(name)))?;
 
-            if custom.stream_deserialize_fn.is_some() {
-                let iter = custom.stream_deserialize_values(reader)?.map(|res| {
-                    res.and_then(|value| {
-                        serde_json::from_value::<T>(value)
-                            .map_err(|e| FormatError::Serde(Box::new(e)))
-                    })
-                });
-                return Ok(Box::new(iter));
-            } else {
-                // Fallback: non-streaming, single item
-                let mut r = reader;
-                let mut bytes = Vec::new();
-                r.read_to_end(&mut bytes)?;
-                let value = custom.deserialize::<T>(&bytes)?;
-                return Ok(Box::new(std::iter::once(Ok(value))));
+                if custom.stream_deserialize_fn.is_some() {
+                    let iter = custom.stream_deserialize_values(reader)?.map(|res| {
+                        res.and_then(|value| {
+                            serde_json::from_value::<T>(value)
+                                .map_err(|e| FormatError::Serde(Box::new(e)))
+                        })
+                    });
+                    return Ok(Box::new(iter));
+                } else {
+                    // Fallback: non-streaming, single item
+                    let mut r = reader;
+                    let mut bytes = Vec::new();
+                    r.read_to_end(&mut bytes)?;
+                    let value = custom.deserialize::<T>(&bytes)?;
+                    return Ok(Box::new(std::iter::once(Ok(value))));
+                }
+            }
+            #[cfg(not(feature = "json"))]
+            {
+                return Err(FormatError::NotEnabled(FormatKind::Custom(name)));
             }
         }
 

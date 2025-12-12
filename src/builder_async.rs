@@ -8,9 +8,11 @@ use crate::config::{
 };
 use crate::engine_async::AsyncIoEngine;
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
+#[cfg(feature = "json")]
+use crate::format::CustomFormat;
 use crate::format::{
-    AsyncFormatRegistry, CustomFormat, DEFAULT_FORMAT_ORDER, FormatKind, FormatRegistry,
-    default_async_registry, default_registry,
+    AsyncFormatRegistry, DEFAULT_FORMAT_ORDER, FormatKind, FormatRegistry, default_async_registry,
+    default_registry,
 };
 use crate::io::{
     AsyncFileInput, AsyncFileOutput, AsyncInputProvider, AsyncOutputTarget, AsyncStdinInput,
@@ -66,6 +68,7 @@ impl MultiioAsyncBuilder {
     /// streaming via the sync `FormatRegistry`, while the async registry is
     /// aware of the corresponding `FormatKind::Custom` for feature gating or
     /// extension-based resolution paths.
+    #[cfg(feature = "json")]
     pub fn with_custom_format(mut self, format: CustomFormat) -> Self {
         // Register the custom format in the sync registry so that
         // `deserialize_value`, `serialize_value`, and

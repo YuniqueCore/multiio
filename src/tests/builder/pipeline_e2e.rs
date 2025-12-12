@@ -1,3 +1,5 @@
+#![cfg(feature = "json")]
+
 use std::fs;
 use std::path::PathBuf;
 

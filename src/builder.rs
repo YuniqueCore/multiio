@@ -8,7 +8,9 @@ use crate::config::{
 };
 use crate::engine::IoEngine;
 use crate::error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
-use crate::format::{CustomFormat, DEFAULT_FORMAT_ORDER, FormatKind, FormatRegistry};
+#[cfg(feature = "json")]
+use crate::format::CustomFormat;
+use crate::format::{DEFAULT_FORMAT_ORDER, FormatKind, FormatRegistry};
 use crate::io::{FileInput, FileOutput, InputProvider, OutputTarget, StdinInput, StdoutOutput};
 
 pub struct MultiioBuilder {
@@ -38,6 +40,7 @@ impl MultiioBuilder {
         }
     }
 
+    #[cfg(feature = "json")]
     pub fn with_custom_format(mut self, format: CustomFormat) -> Self {
         self.registry.register_custom(format);
         self

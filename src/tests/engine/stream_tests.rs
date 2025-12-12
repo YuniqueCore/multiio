@@ -20,6 +20,7 @@ fn make_sync_engine(inputs: Vec<InputSpec>) -> IoEngine {
     IoEngine::new(registry, ErrorPolicy::Accumulate, inputs, outputs)
 }
 
+#[cfg(feature = "json")]
 #[test]
 fn sync_read_stream_returns_per_input_results() {
     // One valid JSON input and two invalid ones
@@ -60,8 +61,8 @@ fn sync_read_stream_returns_per_input_results() {
     assert!(iter.next().is_none());
 }
 
-#[cfg(feature = "async")]
-mod async_stream {
+#[cfg(all(feature = "async", feature = "json"))]
+mod async_json_stream {
     use super::*;
     use std::sync::Arc;
 
@@ -190,71 +191,6 @@ mod async_stream {
     }
 
     #[tokio::test]
-    #[cfg(feature = "plaintext")]
-    async fn async_read_records_async_streams_plaintext_lines() {
-        let dir = tempfile::tempdir().unwrap();
-
-        let path = dir.path().join("lines.txt");
-        let content = "alpha\nbeta\n";
-        tokio::fs::write(&path, content).await.unwrap();
-
-        let id = path.to_string_lossy().to_string();
-        let spec = AsyncInputSpec::new(id, Arc::new(AsyncFileInput::new(path.clone())))
-            .with_format(FormatKind::Plaintext)
-            .with_candidates(vec![FormatKind::Plaintext]);
-
-        let registry = default_async_registry();
-        let outputs: Vec<crate::config::AsyncOutputSpec> = Vec::new();
-        let engine = AsyncIoEngine::new(registry, ErrorPolicy::Accumulate, vec![spec], outputs);
-
-        let results: Vec<Result<String, crate::error::SingleIoError>> =
-            engine.read_records_async::<String>(1).collect().await;
-
-        assert_eq!(results.len(), 2);
-
-        let lines: Vec<String> = results
-            .into_iter()
-            .map(|r| r.expect("expected Ok lines"))
-            .collect();
-
-        assert_eq!(lines, vec!["alpha".to_string(), "beta".to_string()]);
-    }
-
-    #[tokio::test]
-    #[cfg(feature = "yaml")]
-    async fn async_read_records_async_streams_yaml_documents() {
-        let dir = tempfile::tempdir().unwrap();
-
-        let path = dir.path().join("docs.yaml");
-        let yaml = "---\nname: foo\nvalue: 1\n---\nname: bar\nvalue: 2\n";
-        tokio::fs::write(&path, yaml).await.unwrap();
-
-        let id = path.to_string_lossy().to_string();
-        let spec = AsyncInputSpec::new(id, Arc::new(AsyncFileInput::new(path.clone())))
-            .with_format(FormatKind::Yaml)
-            .with_candidates(vec![FormatKind::Yaml]);
-
-        let registry = default_async_registry();
-        let outputs: Vec<crate::config::AsyncOutputSpec> = Vec::new();
-        let engine = AsyncIoEngine::new(registry, ErrorPolicy::Accumulate, vec![spec], outputs);
-
-        let results: Vec<Result<StreamConfig, crate::error::SingleIoError>> =
-            engine.read_records_async::<StreamConfig>(1).collect().await;
-
-        assert_eq!(results.len(), 2);
-
-        let rows: Vec<StreamConfig> = results
-            .into_iter()
-            .map(|r| r.expect("expected Ok documents"))
-            .collect();
-
-        assert_eq!(rows[0].name, "foo");
-        assert_eq!(rows[0].value, 1);
-        assert_eq!(rows[1].name, "bar");
-        assert_eq!(rows[1].value, 2);
-    }
-
-    #[tokio::test]
     async fn async_read_records_async_with_concurrency_gt_one() {
         let dir = tempfile::tempdir().unwrap();
         let mut inputs = Vec::new();
@@ -354,6 +290,83 @@ mod async_stream {
         let rows: Vec<StreamConfig> = results
             .into_iter()
             .map(|r| r.expect("expected Ok rows"))
+            .collect();
+
+        assert_eq!(rows[0].name, "foo");
+        assert_eq!(rows[0].value, 1);
+        assert_eq!(rows[1].name, "bar");
+        assert_eq!(rows[1].value, 2);
+    }
+}
+
+#[cfg(feature = "async")]
+mod async_non_json_stream {
+    use super::*;
+    use std::sync::Arc;
+
+    use futures::StreamExt;
+
+    use crate::config::AsyncInputSpec;
+    use crate::io::AsyncFileInput;
+    use crate::{AsyncIoEngine, default_async_registry};
+
+    #[tokio::test]
+    #[cfg(feature = "plaintext")]
+    async fn async_read_records_async_streams_plaintext_lines() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let path = dir.path().join("lines.txt");
+        let content = "alpha\nbeta\n";
+        tokio::fs::write(&path, content).await.unwrap();
+
+        let id = path.to_string_lossy().to_string();
+        let spec = AsyncInputSpec::new(id, Arc::new(AsyncFileInput::new(path.clone())))
+            .with_format(FormatKind::Plaintext)
+            .with_candidates(vec![FormatKind::Plaintext]);
+
+        let registry = default_async_registry();
+        let outputs: Vec<crate::config::AsyncOutputSpec> = Vec::new();
+        let engine = AsyncIoEngine::new(registry, ErrorPolicy::Accumulate, vec![spec], outputs);
+
+        let results: Vec<Result<String, crate::error::SingleIoError>> =
+            engine.read_records_async::<String>(1).collect().await;
+
+        assert_eq!(results.len(), 2);
+
+        let lines: Vec<String> = results
+            .into_iter()
+            .map(|r| r.expect("expected Ok lines"))
+            .collect();
+
+        assert_eq!(lines, vec!["alpha".to_string(), "beta".to_string()]);
+    }
+
+    #[tokio::test]
+    #[cfg(feature = "yaml")]
+    async fn async_read_records_async_streams_yaml_documents() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let path = dir.path().join("docs.yaml");
+        let yaml = "---\nname: foo\nvalue: 1\n---\nname: bar\nvalue: 2\n";
+        tokio::fs::write(&path, yaml).await.unwrap();
+
+        let id = path.to_string_lossy().to_string();
+        let spec = AsyncInputSpec::new(id, Arc::new(AsyncFileInput::new(path.clone())))
+            .with_format(FormatKind::Yaml)
+            .with_candidates(vec![FormatKind::Yaml]);
+
+        let registry = default_async_registry();
+        let outputs: Vec<crate::config::AsyncOutputSpec> = Vec::new();
+        let engine = AsyncIoEngine::new(registry, ErrorPolicy::Accumulate, vec![spec], outputs);
+
+        let results: Vec<Result<StreamConfig, crate::error::SingleIoError>> =
+            engine.read_records_async::<StreamConfig>(1).collect().await;
+
+        assert_eq!(results.len(), 2);
+
+        let rows: Vec<StreamConfig> = results
+            .into_iter()
+            .map(|r| r.expect("expected Ok documents"))
             .collect();
 
         assert_eq!(rows[0].name, "foo");

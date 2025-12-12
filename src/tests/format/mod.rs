@@ -1,7 +1,10 @@
 //! Format module tests.
 
+#[cfg(feature = "json")]
 mod custom_stream_tests;
+#[cfg(feature = "json")]
 mod custom_tests;
+#[cfg(feature = "json")]
 mod registry_tests;
 
 #[cfg(feature = "csv")]

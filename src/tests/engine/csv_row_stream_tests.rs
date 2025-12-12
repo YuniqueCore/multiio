@@ -1,3 +1,5 @@
+#![cfg(feature = "csv")]
+
 use std::sync::Arc;
 
 use crate::config::InputSpec;

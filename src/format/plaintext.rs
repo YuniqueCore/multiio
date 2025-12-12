@@ -112,8 +112,7 @@ pub(crate) fn serialize<T: Serialize>(value: &T) -> Result<Vec<u8>, FormatError>
     #[cfg(not(feature = "json"))]
     {
         let _ = value;
-        Err(FormatError::Other(Box::new(std::io::Error::new(
-            std::io::ErrorKind::Other,
+        Err(FormatError::Other(Box::new(std::io::Error::other(
             "Plaintext serialization requires JSON feature",
         ))))
     }

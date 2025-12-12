@@ -108,7 +108,9 @@ pub use builder::MultiioBuilder;
 pub use config::{FileExistsPolicy, InputSpec, OutputSpec, PipelineConfig};
 pub use engine::IoEngine;
 pub use error::{AggregateError, ErrorPolicy, SingleIoError, Stage};
-pub use format::{CustomFormat, FormatError, FormatKind, FormatRegistry, default_registry};
+#[cfg(feature = "json")]
+pub use format::CustomFormat;
+pub use format::{FormatError, FormatKind, FormatRegistry, default_registry};
 pub use io::{
     FileInput, FileOutput, InMemorySink, InMemorySource, InputProvider, OutputTarget, StderrOutput,
     StdinInput, StdoutOutput,

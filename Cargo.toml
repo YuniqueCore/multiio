@@ -9,12 +9,12 @@ keywords = ["io", "cli", "multi-input", "multi-output", "format"]
 categories = ["command-line-interface", "encoding", "parser-implementations"]
 
 [features]
-default = ["json", "yaml", "toml", "ini", "csv", "xml", "plaintext"]
+default = ["yaml", "plaintext"]
 json = ["serde_json"]
 yaml = ["serde_yaml"]
 toml = ["dep:toml"]
 ini = ["dep:serde_ini"]
-csv = ["dep:csv"]
+csv = ["dep:csv", "json"]
 xml = ["quick-xml"]
 plaintext = []
 
@@ -78,6 +78,36 @@ path = "src/bin/multiio_async_pipeline.rs"
 required-features = ["json", "async"]
 
 [[bin]]
+name = "multiio_manual"
+path = "src/bin/multiio_manual.rs"
+required-features = ["json"]
+
+[[bin]]
 name = "multiio_records_demo"
 path = "src/bin/multiio_records_demo.rs"
+required-features = ["json"]
+
+[[example]]
+name = "basic_sync"
+path = "examples/basic_sync.rs"
+required-features = ["json"]
+
+[[example]]
+name = "basic_async"
+path = "examples/basic_async.rs"
+required-features = ["json", "async"]
+
+[[example]]
+name = "from_pipeline"
+path = "examples/from_pipeline.rs"
+required-features = ["json"]
+
+[[example]]
+name = "in_memory"
+path = "examples/in_memory.rs"
+required-features = ["json"]
+
+[[example]]
+name = "custom_format"
+path = "examples/custom_format.rs"
 required-features = ["json"]

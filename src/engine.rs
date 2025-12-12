@@ -289,6 +289,7 @@ impl IoEngine {
     ///
     /// Each top-level JSON value is deserialized into `T`. Errors are reported per-record
     /// as `SingleIoError` with appropriate stage and target information.
+    #[cfg(feature = "json")]
     pub fn read_json_records<T>(&self) -> impl Iterator<Item = Result<T, SingleIoError>> + '_
     where
         T: DeserializeOwned + 'static,
@@ -302,6 +303,7 @@ impl IoEngine {
     ///
     /// Each CSV record is deserialized into `T`. Errors are reported per-record
     /// as `SingleIoError` with appropriate stage and target information.
+    #[cfg(feature = "csv")]
     pub fn read_csv_records<T>(&self) -> impl Iterator<Item = Result<T, SingleIoError>> + '_
     where
         T: DeserializeOwned + 'static,
@@ -311,6 +313,7 @@ impl IoEngine {
             .flat_map(move |spec| self.csv_stream_for_spec::<T>(spec))
     }
 
+    #[cfg(feature = "csv")]
     fn csv_stream_for_spec<T>(
         &self,
         spec: &InputSpec,
@@ -418,6 +421,7 @@ impl IoEngine {
         Box::new(mapped)
     }
 
+    #[cfg(feature = "json")]
     fn json_stream_for_spec<T>(
         &self,
         spec: &InputSpec,
