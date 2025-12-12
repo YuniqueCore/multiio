@@ -24,10 +24,13 @@ install-prek:
     prek uninstall
     prek install .
 
-# test schemaui related things
+# test multiio related things
 test:
-    cargo test --workspace -F full
+    cargo test --workspace --all-features --all-targets
 
+# run e2e tests
+e2e:
+    cd e2e && uv run pytest
 
 # build
 build:
