@@ -35,7 +35,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-multiio = { version = "0.2", features = ["json"] }
+multiio = { version = "0.2.1", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 ```
 
@@ -73,7 +73,7 @@ Enable the `async` feature (and the formats you use):
 
 ```toml
 [dependencies]
-multiio = { version = "0.2", features = ["async", "json", "yaml"] }
+multiio = { version = "0.2.1", features = ["async", "json", "yaml"] }
 ```
 
 ```rust
@@ -133,7 +133,7 @@ Custom formats are available behind the `custom` feature:
 
 ```toml
 [dependencies]
-multiio = { version = "0.2", features = ["custom"] }
+multiio = { version = "0.2.1", features = ["custom"] }
 ```
 
 multiio allows you to register your own formats using `CustomFormat` and
