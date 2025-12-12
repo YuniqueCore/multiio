@@ -121,44 +121,6 @@ impl AsyncFormatRegistry {
 /// Create a default async registry with all enabled formats.
 pub fn default_async_registry() -> AsyncFormatRegistry {
     let mut registry = AsyncFormatRegistry::new();
-
-    for kind in super::DEFAULT_FORMAT_ORDER {
-        match kind {
-            FormatKind::Json => {
-                #[cfg(feature = "json")]
-                registry.register(FormatKind::Json);
-            }
-            FormatKind::Yaml => {
-                #[cfg(feature = "yaml")]
-                registry.register(FormatKind::Yaml);
-            }
-            FormatKind::Toml => {
-                #[cfg(feature = "toml")]
-                registry.register(FormatKind::Toml);
-            }
-            FormatKind::Csv => {
-                #[cfg(feature = "csv")]
-                registry.register(FormatKind::Csv);
-            }
-            FormatKind::Xml => {
-                #[cfg(feature = "xml")]
-                registry.register(FormatKind::Xml);
-            }
-            FormatKind::Ini => {
-                #[cfg(feature = "ini")]
-                registry.register(FormatKind::Ini);
-            }
-            FormatKind::Markdown => {
-                #[cfg(feature = "markdown")]
-                registry.register(FormatKind::Markdown);
-            }
-            FormatKind::Plaintext => {
-                #[cfg(feature = "plaintext")]
-                registry.register(FormatKind::Plaintext);
-            }
-            FormatKind::Custom(_) => {}
-        }
-    }
-
+    super::for_each_enabled_builtin(|k| registry.register(k));
     registry
 }

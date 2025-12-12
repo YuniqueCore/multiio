@@ -133,6 +133,31 @@ format_spec!(define_default_order_from_spec);
 format_spec!(define_structured_text_from_spec);
 format_spec!(impl_formatkind_display);
 
+// Helper: iterate over all enabled builtin formats in DEFAULT_FORMAT_ORDER.
+macro_rules! impl_for_each_enabled_builtin {
+    ( $(($cat:ident, $kind:ident, $feat:literal, $module:ident,
+        $display:literal, [$($ext:literal),*], [$($alias:literal),*]))* ) => {
+        pub(crate) fn for_each_enabled_builtin<F>(mut f: F)
+        where
+            F: FnMut(FormatKind),
+        {
+            for kind in DEFAULT_FORMAT_ORDER {
+                match kind {
+                    $(
+                        FormatKind::$kind => {
+                            #[cfg(feature = $feat)]
+                            f(FormatKind::$kind);
+                        }
+                    )*
+                    FormatKind::Custom(_) => {}
+                }
+            }
+        }
+    };
+}
+
+format_spec!(impl_for_each_enabled_builtin);
+
 // Projection: body for `FormatKind::extensions`.
 macro_rules! impl_formatkind_extensions_body {
     ($self:ident
@@ -641,45 +666,7 @@ impl FormatRegistry {
 /// default formats with order: [DEFAULT_FORMAT_ORDER]
 pub fn default_registry() -> FormatRegistry {
     let mut registry = FormatRegistry::new();
-
-    for kind in DEFAULT_FORMAT_ORDER {
-        match kind {
-            FormatKind::Json => {
-                #[cfg(feature = "json")]
-                registry.register(FormatKind::Json);
-            }
-            FormatKind::Yaml => {
-                #[cfg(feature = "yaml")]
-                registry.register(FormatKind::Yaml);
-            }
-            FormatKind::Toml => {
-                #[cfg(feature = "toml")]
-                registry.register(FormatKind::Toml);
-            }
-            FormatKind::Ini => {
-                #[cfg(feature = "ini")]
-                registry.register(FormatKind::Ini);
-            }
-            FormatKind::Csv => {
-                #[cfg(feature = "csv")]
-                registry.register(FormatKind::Csv);
-            }
-            FormatKind::Xml => {
-                #[cfg(feature = "xml")]
-                registry.register(FormatKind::Xml);
-            }
-
-            FormatKind::Markdown => {
-                #[cfg(feature = "markdown")]
-                registry.register(FormatKind::Markdown);
-            }
-            FormatKind::Plaintext => {
-                #[cfg(feature = "plaintext")]
-                registry.register(FormatKind::Plaintext);
-            }
-            FormatKind::Custom(_) => {}
-        }
-    }
+    for_each_enabled_builtin(|k| registry.register(k));
 
     registry
 }
