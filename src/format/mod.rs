@@ -487,6 +487,7 @@ macro_rules! define_structured_text_from_spec {
              $other_display:literal, [$($other_ext:literal),*], [$($other_alias:literal),*])
         )*
     ) => {
+        #[allow(dead_code)]
         pub(crate) const STRUCTURED_TEXT_FORMATS: &[FormatKind] = &[
             $( FormatKind::$kind, )*
         ];
@@ -505,6 +506,8 @@ macro_rules! impl_for_each_enabled_builtin {
         where
             F: FnMut(FormatKind),
         {
+            // Ensure `f` is considered used even when all format features are disabled.
+            let _ = &mut f;
             for kind in DEFAULT_FORMAT_ORDER {
                 match kind {
                     $(
@@ -666,11 +669,13 @@ macro_rules! impl_serialize_body {
 }
 
 pub fn deserialize<T: DeserializeOwned>(kind: FormatKind, bytes: &[u8]) -> Result<T, FormatError> {
+    let _ = bytes;
     format_spec!(impl_deserialize_body(bytes, kind))
 }
 
 /// Serialize to bytes using the specified format.
 pub fn serialize<T: Serialize>(kind: FormatKind, value: &T) -> Result<Vec<u8>, FormatError> {
+    let _ = value;
     format_spec!(impl_serialize_body(value, kind))
 }
 

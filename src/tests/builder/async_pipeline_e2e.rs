@@ -1,4 +1,4 @@
-#![cfg(feature = "json")]
+#![cfg(all(feature = "json", feature = "yaml", feature = "async"))]
 
 use std::path::PathBuf;
 

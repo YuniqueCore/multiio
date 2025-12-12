@@ -1,3 +1,5 @@
+#![cfg(feature = "csv")]
+
 use std::env;
 use std::error::Error;
 

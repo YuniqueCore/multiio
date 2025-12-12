@@ -1,3 +1,5 @@
+#![cfg(feature = "yaml")]
+
 //! Tests for PipelineConfig parsing and builder helpers.
 
 use crate::config::PipelineConfig;

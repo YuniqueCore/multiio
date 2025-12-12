@@ -1,4 +1,4 @@
-#![cfg(all(feature = "json", feature = "async"))]
+#![cfg(all(feature = "json", feature = "yaml", feature = "async"))]
 
 use std::env;
 use std::fs::File;

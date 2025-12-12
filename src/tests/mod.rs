@@ -5,3 +5,4 @@ mod engine;
 mod error;
 mod format;
 mod io;
+mod feature_matrix;

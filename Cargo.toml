@@ -9,7 +9,7 @@ keywords = ["io", "cli", "multi-input", "multi-output", "format"]
 categories = ["command-line-interface", "encoding", "parser-implementations"]
 
 [features]
-default = ["yaml", "plaintext"]
+default = ["plaintext"]
 json = ["serde_json"]
 yaml = ["serde_yaml"]
 toml = ["dep:toml"]
@@ -70,12 +70,12 @@ harness = false
 [[bin]]
 name = "multiio_pipeline"
 path = "src/bin/multiio_pipeline.rs"
-required-features = ["json"]
+required-features = ["json", "yaml"]
 
 [[bin]]
 name = "multiio_async_pipeline"
 path = "src/bin/multiio_async_pipeline.rs"
-required-features = ["json", "async"]
+required-features = ["json", "yaml", "async"]
 
 [[bin]]
 name = "multiio_manual"
@@ -85,7 +85,7 @@ required-features = ["json"]
 [[bin]]
 name = "multiio_records_demo"
 path = "src/bin/multiio_records_demo.rs"
-required-features = ["json"]
+required-features = ["csv"]
 
 [[example]]
 name = "basic_sync"
