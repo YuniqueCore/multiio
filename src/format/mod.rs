@@ -34,54 +34,419 @@ mod yaml;
 use serde::{Serialize, de::DeserializeOwned};
 use thiserror::Error;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum FormatKind {
-    Json,
-    Yaml,
-    Toml,
-    Csv,
-    Xml,
-    Ini,
-    Markdown,
-    /// Custom format with a unique name
-    Custom(&'static str),
-    Plaintext,
-}
-
-impl Copy for FormatKind {}
-
-/// Central spec for all builtin (non-custom) formats.
+/// Define `FormatKind` and the central `format_spec!` from a single source.
 ///
-/// Fields: (Category, Variant, feature, module, display, extensions, aliases)
-macro_rules! format_spec {
-    // Allow passing extra arguments through to the projection macro.
-    ($mac:ident ( $($args:tt)* )) => {
-        $mac! {
-            $($args)*
-            (Structured, Json,      "json",      json,      "json",      ["json"],            ["json"])
-            (Structured, Yaml,      "yaml",      yaml,      "yaml",      ["yaml", "yml"],    ["yaml", "yml"])
-            (Structured, Toml,      "toml",      toml,      "toml",      ["toml"],            ["toml"])
-            (Structured, Ini,       "ini",       ini,       "ini",       ["ini"],             ["ini"])
-            (Other,      Csv,       "csv",       csv,       "csv",       ["csv"],             ["csv"])
-            (Other,      Xml,       "xml",       xml,       "xml",       ["xml"],             ["xml"])
-            (Other,      Markdown,  "markdown",  markdown,  "markdown",  ["md", "markdown"], ["markdown", "md"])
-            (Other,      Plaintext, "plaintext", plaintext, "plaintext", ["txt", "text"],    ["plaintext", "text", "txt"])
+/// Syntax:
+/// ```rust,ignore
+/// define_formats!(
+///     #[derive(...)]
+///     pub enum FormatKind {
+///         // Compact builtin form: aliases are also used as extensions.
+///         Json => (Structured, json,   "json",     ["json"]),
+///         Compact:(Category,   module, canonical, [aliases])`
+///                  - feature = canonical
+///                  - display = canonical
+///                  - extensions = aliases
+///
+///         // Full builtin form: extensions and aliases can differ.
+///         Plaintext => (Other,    plaintext, "plaintext", ["txt", "text"], ["plaintext", "text", "txt"]),
+///         Full:    `=> (Category, module,    canonical,   [extensions],    [aliases])`
+///
+///         /// Custom format with a unique name
+///         Custom(&'static str),
+///     }
+/// );
+/// ```
+///
+/// Builtin variants use:
+/// - Compact: `=> (Category, module, canonical, [aliases])`
+///     - feature = canonical
+///     - display = canonical
+///     - extensions = aliases
+/// - Full: `=> (Category, module, canonical, [extensions], [aliases])`
+///
+/// Variants without `=>` are excluded from `format_spec!` (e.g. `Custom`).
+macro_rules! define_formats {
+    (
+        $(#[$enum_meta:meta])*
+        $vis:vis enum $name:ident {
+            $($body:tt)*
+        }
+    ) => {
+        define_formats!(@parse
+            [$($enum_meta)*]
+            $vis
+            $name
+            []
+            []
+            $($body)*
+        );
+    };
+
+    // Finish parsing and emit items.
+    (@parse
+        [$($enum_meta:meta)*]
+        $vis:vis
+        $name:ident
+        [$($enum_variants:tt)*]
+        [$($spec_entries:tt)*]
+    ) => {
+        define_formats!(@emit
+            [$($enum_meta)*]
+            $vis
+            $name
+            [$($enum_variants)*]
+            [$($spec_entries)*]
+            $
+        );
+    };
+
+    // Emit the enum and the inner `format_spec!` macro on stable Rust.
+    (@emit
+        [$($enum_meta:meta)*]
+        $vis:vis
+        $name:ident
+        [$($enum_variants:tt)*]
+        [$($spec_entries:tt)*]
+        $d:tt
+    ) => {
+        $(#[$enum_meta])*
+        $vis enum $name {
+            $($enum_variants)*
+        }
+
+        impl Copy for $name {}
+
+        /// Central spec for all builtin (non-custom) formats.
+        ///
+        /// Fields: (Category, Variant, feature, module, display, extensions, aliases)
+        macro_rules! format_spec {
+            // Allow passing extra arguments through to the projection macro.
+            ($d mac:ident ( $d($d args:tt)* )) => {
+                $d mac! {
+                    $d($d args)*
+                    $($spec_entries)*
+                }
+            };
+
+            ($d mac:ident) => {
+                $d mac! {
+                    $($spec_entries)*
+                }
+            };
         }
     };
 
-    ($mac:ident) => {
-        $mac! {
-            (Structured, Json,      "json",      json,      "json",      ["json"],            ["json"])
-            (Structured, Yaml,      "yaml",      yaml,      "yaml",      ["yaml", "yml"],    ["yaml", "yml"])
-            (Structured, Toml,      "toml",      toml,      "toml",      ["toml"],            ["toml"])
-            (Structured, Ini,       "ini",       ini,       "ini",       ["ini"],             ["ini"])
-            (Other,      Csv,       "csv",       csv,       "csv",       ["csv"],             ["csv"])
-            (Other,      Xml,       "xml",       xml,       "xml",       ["xml"],             ["xml"])
-            (Other,      Markdown,  "markdown",  markdown,  "markdown",  ["md", "markdown"], ["markdown", "md"])
-            (Other,      Plaintext, "plaintext", plaintext, "plaintext", ["txt", "text"],    ["plaintext", "text", "txt"])
-        }
+    // Builtin unit variant with explicit extensions and aliases, followed by more tokens.
+    (@parse
+        [$($enum_meta:meta)*]
+        $vis:vis
+        $name:ident
+        [$($enum_variants:tt)*]
+        [$($spec_entries:tt)*]
+        $(#[$var_meta:meta])*
+        $variant:ident => (
+            $cat:ident,
+            $module:ident,
+            $canonical:literal,
+            [$($ext:literal),* $(,)?],
+            [$($alias:literal),* $(,)?]
+        )
+        , $($tail:tt)*
+    ) => {
+        define_formats!(@parse
+            [$($enum_meta)*]
+            $vis
+            $name
+            [
+                $($enum_variants)*
+                $(#[$var_meta])*
+                $variant,
+            ]
+            [
+                $($spec_entries)*
+                ($cat, $variant, $canonical, $module, $canonical, [$($ext),*], [$($alias),*])
+            ]
+            $($tail)*
+        );
+    };
+
+    // Builtin unit variant with explicit extensions and aliases, last (no trailing comma).
+    (@parse
+        [$($enum_meta:meta)*]
+        $vis:vis
+        $name:ident
+        [$($enum_variants:tt)*]
+        [$($spec_entries:tt)*]
+        $(#[$var_meta:meta])*
+        $variant:ident => (
+            $cat:ident,
+            $module:ident,
+            $canonical:literal,
+            [$($ext:literal),* $(,)?],
+            [$($alias:literal),* $(,)?]
+        )
+    ) => {
+        define_formats!(@parse
+            [$($enum_meta)*]
+            $vis
+            $name
+            [
+                $($enum_variants)*
+                $(#[$var_meta])*
+                $variant,
+            ]
+            [
+                $($spec_entries)*
+                ($cat, $variant, $canonical, $module, $canonical, [$($ext),*], [$($alias),*])
+            ]
+        );
+    };
+
+    // Builtin unit variant where aliases are also used as extensions, followed by more tokens.
+    (@parse
+        [$($enum_meta:meta)*]
+        $vis:vis
+        $name:ident
+        [$($enum_variants:tt)*]
+        [$($spec_entries:tt)*]
+        $(#[$var_meta:meta])*
+        $variant:ident => (
+            $cat:ident,
+            $module:ident,
+            $canonical:literal,
+            [$($alias:literal),* $(,)?]
+        )
+        , $($tail:tt)*
+    ) => {
+        define_formats!(@parse
+            [$($enum_meta)*]
+            $vis
+            $name
+            [
+                $($enum_variants)*
+                $(#[$var_meta])*
+                $variant,
+            ]
+            [
+                $($spec_entries)*
+                ($cat, $variant, $canonical, $module, $canonical, [$($alias),*], [$($alias),*])
+            ]
+            $($tail)*
+        );
+    };
+
+    // Builtin unit variant where aliases are also used as extensions, last (no trailing comma).
+    (@parse
+        [$($enum_meta:meta)*]
+        $vis:vis
+        $name:ident
+        [$($enum_variants:tt)*]
+        [$($spec_entries:tt)*]
+        $(#[$var_meta:meta])*
+        $variant:ident => (
+            $cat:ident,
+            $module:ident,
+            $canonical:literal,
+            [$($alias:literal),* $(,)?]
+        )
+    ) => {
+        define_formats!(@parse
+            [$($enum_meta)*]
+            $vis
+            $name
+            [
+                $($enum_variants)*
+                $(#[$var_meta])*
+                $variant,
+            ]
+            [
+                $($spec_entries)*
+                ($cat, $variant, $canonical, $module, $canonical, [$($alias),*], [$($alias),*])
+            ]
+        );
+    };
+
+    // Legacy builtin syntax: (Category, feature, module, display, [extensions], [aliases])
+    (@parse
+        [$($enum_meta:meta)*]
+        $vis:vis
+        $name:ident
+        [$($enum_variants:tt)*]
+        [$($spec_entries:tt)*]
+        $(#[$var_meta:meta])*
+        $variant:ident => (
+            $cat:ident,
+            $feat:literal,
+            $module:ident,
+            $display:literal,
+            [$($ext:literal),* $(,)?],
+            [$($alias:literal),* $(,)?]
+        )
+        , $($tail:tt)*
+    ) => {
+        define_formats!(@parse
+            [$($enum_meta)*]
+            $vis
+            $name
+            [
+                $($enum_variants)*
+                $(#[$var_meta])*
+                $variant,
+            ]
+            [
+                $($spec_entries)*
+                ($cat, $variant, $feat, $module, $display, [$($ext),*], [$($alias),*])
+            ]
+            $($tail)*
+        );
+    };
+
+    // Legacy builtin syntax, last (no trailing comma).
+    (@parse
+        [$($enum_meta:meta)*]
+        $vis:vis
+        $name:ident
+        [$($enum_variants:tt)*]
+        [$($spec_entries:tt)*]
+        $(#[$var_meta:meta])*
+        $variant:ident => (
+            $cat:ident,
+            $feat:literal,
+            $module:ident,
+            $display:literal,
+            [$($ext:literal),* $(,)?],
+            [$($alias:literal),* $(,)?]
+        )
+    ) => {
+        define_formats!(@parse
+            [$($enum_meta)*]
+            $vis
+            $name
+            [
+                $($enum_variants)*
+                $(#[$var_meta])*
+                $variant,
+            ]
+            [
+                $($spec_entries)*
+                ($cat, $variant, $feat, $module, $display, [$($ext),*], [$($alias),*])
+            ]
+        );
+    };
+
+    // Extra unit variant, followed by more tokens.
+    (@parse
+        [$($enum_meta:meta)*]
+        $vis:vis
+        $name:ident
+        [$($enum_variants:tt)*]
+        [$($spec_entries:tt)*]
+        $(#[$var_meta:meta])*
+        $variant:ident
+        , $($tail:tt)*
+    ) => {
+        define_formats!(@parse
+            [$($enum_meta)*]
+            $vis
+            $name
+            [
+                $($enum_variants)*
+                $(#[$var_meta])*
+                $variant,
+            ]
+            [$($spec_entries)*]
+            $($tail)*
+        );
+    };
+
+    // Extra unit variant, last (no trailing comma).
+    (@parse
+        [$($enum_meta:meta)*]
+        $vis:vis
+        $name:ident
+        [$($enum_variants:tt)*]
+        [$($spec_entries:tt)*]
+        $(#[$var_meta:meta])*
+        $variant:ident
+    ) => {
+        define_formats!(@parse
+            [$($enum_meta)*]
+            $vis
+            $name
+            [
+                $($enum_variants)*
+                $(#[$var_meta])*
+                $variant,
+            ]
+            [$($spec_entries)*]
+        );
+    };
+
+    // Extra tuple/struct-like variant, followed by more tokens.
+    (@parse
+        [$($enum_meta:meta)*]
+        $vis:vis
+        $name:ident
+        [$($enum_variants:tt)*]
+        [$($spec_entries:tt)*]
+        $(#[$var_meta:meta])*
+        $variant:ident ( $($fields:tt)* )
+        , $($tail:tt)*
+    ) => {
+        define_formats!(@parse
+            [$($enum_meta)*]
+            $vis
+            $name
+            [
+                $($enum_variants)*
+                $(#[$var_meta])*
+                $variant ( $($fields)* ),
+            ]
+            [$($spec_entries)*]
+            $($tail)*
+        );
+    };
+
+    // Extra tuple/struct-like variant, last (no trailing comma).
+    (@parse
+        [$($enum_meta:meta)*]
+        $vis:vis
+        $name:ident
+        [$($enum_variants:tt)*]
+        [$($spec_entries:tt)*]
+        $(#[$var_meta:meta])*
+        $variant:ident ( $($fields:tt)* )
+    ) => {
+        define_formats!(@parse
+            [$($enum_meta)*]
+            $vis
+            $name
+            [
+                $($enum_variants)*
+                $(#[$var_meta])*
+                $variant ( $($fields)* ),
+            ]
+            [$($spec_entries)*]
+        );
     };
 }
+
+define_formats!(
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    pub enum FormatKind {
+        Json => (Structured, json, "json", ["json"]),
+        Yaml => (Structured, yaml, "yaml", ["yaml", "yml"]),
+        Toml => (Structured, toml, "toml", ["toml"]),
+        Ini => (Structured, ini, "ini", ["ini"]),
+        Csv => (Other, csv, "csv", ["csv"]),
+        Xml => (Other, xml, "xml", ["xml"]),
+        Markdown => (Other, markdown, "markdown", ["md", "markdown"]),
+        /// Custom format with a unique name
+        Custom(&'static str),
+        Plaintext => (Other, plaintext, "plaintext", ["plaintext", "text", "txt"]),
+    }
+);
 
 // Projection: full `Display` implementation for `FormatKind`.
 macro_rules! impl_formatkind_display {
