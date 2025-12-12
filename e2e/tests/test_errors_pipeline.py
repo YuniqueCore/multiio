@@ -5,37 +5,6 @@ from pathlib import Path
 from conftest import e2e_dir, run_pipeline
 
 
-def test_sync_pipeline_unknown_markdown_format(tmp_path: Path, multiio_bin: Path) -> None:
-    """Pipeline with markdown output should fail when markdown feature is not enabled."""
-    e2e = e2e_dir()
-    scenario = "simple_json_roundtrip"
-
-    input_file = e2e / "data" / "input" / scenario / "input.json"
-    output_md = tmp_path / "out.md"
-
-    pipeline_yaml = f"""\
-inputs:
-  - id: in
-    kind: file
-    path: {input_file}
-    format: json
-outputs:
-  - id: md_out
-    kind: file
-    path: {output_md}
-    format: markdown
-error_policy: fast_fail
-format_order: ["json", "markdown"]
-"""
-
-    result = run_pipeline(multiio_bin, pipeline_yaml, tmp_path)
-
-    assert result.returncode != 0, "pipeline with markdown format unexpectedly succeeded"
-    stderr = result.stderr
-    assert "Unknown format" in stderr
-    assert "markdown" in stderr
-
-
 def test_sync_pipeline_unknown_custom_input_format(tmp_path: Path, multiio_bin: Path) -> None:
     """Pipeline with custom:missing-format input should fail with clear error."""
     e2e = e2e_dir()
@@ -135,33 +104,3 @@ format_order: ["json", "yaml", "plaintext"]
     contents = output_json.read_text(encoding="utf-8")
     assert contents.startswith("OLD"), "append policy did not preserve existing prefix"
 
-
-def test_async_pipeline_unknown_markdown_format(tmp_path: Path, multiio_async_bin: Path) -> None:
-    """Async pipeline with markdown output should also fail with Unknown format."""
-    e2e = e2e_dir()
-    scenario = "simple_json_roundtrip"
-
-    input_file = e2e / "data" / "input" / scenario / "input.json"
-    output_md = tmp_path / "out_async.md"
-
-    pipeline_yaml = f"""\
-inputs:
-  - id: in
-    kind: file
-    path: {input_file}
-    format: json
-outputs:
-  - id: md_out
-    kind: file
-    path: {output_md}
-    format: markdown
-error_policy: fast_fail
-format_order: ["json", "markdown"]
-"""
-
-    result = run_pipeline(multiio_async_bin, pipeline_yaml, tmp_path)
-
-    assert result.returncode != 0, "async pipeline with markdown format unexpectedly succeeded"
-    stderr = result.stderr
-    assert "Unknown format" in stderr
-    assert "markdown" in stderr

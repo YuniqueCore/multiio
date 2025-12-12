@@ -1,6 +1,6 @@
 //! Standard I/O implementations for files and stdin/stdout.
 
-use std::fs::OpenOptions;
+use std::fs::{self, OpenOptions};
 use std::io::{self, BufReader, BufWriter, Read, Write};
 use std::path::PathBuf;
 
@@ -165,6 +165,11 @@ impl OutputTarget for FileOutput {
     }
 
     fn open_overwrite(&self) -> io::Result<Box<dyn Write + Send>> {
+        if let Some(parent) = self.path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            fs::create_dir_all(parent)?;
+        }
         let file = OpenOptions::new()
             .create(true)
             .truncate(true)
@@ -174,6 +179,11 @@ impl OutputTarget for FileOutput {
     }
 
     fn open_append(&self) -> io::Result<Box<dyn Write + Send>> {
+        if let Some(parent) = self.path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            fs::create_dir_all(parent)?;
+        }
         let file = OpenOptions::new()
             .create(true)
             .append(true)

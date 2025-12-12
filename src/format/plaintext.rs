@@ -14,7 +14,36 @@ fn decode_from_string<T: DeserializeOwned>(s: String) -> Result<T, FormatError> 
     T::deserialize(deserializer).map_err(|e| FormatError::Serde(Box::new(e)))
 }
 
+fn looks_like_structured(s: &str) -> bool {
+    let trimmed = s.trim_start();
+    if trimmed.starts_with('{') || trimmed.starts_with('[') || trimmed.starts_with("---") {
+        return true;
+    }
+
+    for line in trimmed.lines() {
+        let line = line.trim_start();
+        if line.starts_with("- ") || line.starts_with('[') {
+            return true;
+        }
+        if line.contains(": ") || line.ends_with(':') {
+            return true;
+        }
+        if let Some((left, right)) = line.split_once('=')
+            && !left.trim().is_empty()
+            && !right.trim().is_empty()
+        {
+            return true;
+        }
+    }
+
+    false
+}
+
 fn try_decode_structured<T: DeserializeOwned>(s: &str) -> Result<Option<T>, FormatError> {
+    if !looks_like_structured(s) {
+        return Ok(None);
+    }
+
     for kind in STRUCTURED_TEXT_FORMATS {
         match kind {
             FormatKind::Json => {

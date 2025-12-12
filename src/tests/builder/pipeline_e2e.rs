@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use crate::config::PipelineConfig;
 use crate::error::{AggregateError, Stage};
-use crate::format::{self, FormatKind};
 use crate::{ErrorPolicy, MultiioBuilder, default_registry};
 
 #[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq)]
@@ -69,85 +68,6 @@ format_order: ["json", "yaml", "plaintext"]
     let decoded: Vec<ConfigData> = serde_json::from_slice(&out_bytes).expect("decode output json");
     assert_eq!(decoded.len(), 1);
     assert_eq!(decoded[0], record);
-}
-
-#[test]
-fn pipeline_e2e_mixed_formats_json_to_csv_md_yaml() {
-    let dir = tempfile::tempdir().expect("tempdir");
-    let in_path = dir.path().join("input.json");
-    let csv_out = dir.path().join("out.csv");
-    let md_out = dir.path().join("out.md");
-    let yaml_out = dir.path().join("out.yaml");
-
-    let record = ConfigData {
-        name: "a".into(),
-        value: 1,
-    };
-    write_json_object(&in_path, &record);
-
-    let yaml = format!(
-        r#"
-inputs:
-  - id: in
-    kind: file
-    path: {}
-    format: json
-outputs:
-  - id: csv
-    kind: file
-    path: {}
-    format: csv
-  - id: md
-    kind: file
-    path: {}
-    format: markdown
-  - id: yaml
-    kind: file
-    path: {}
-    format: yaml
-error_policy: fast_fail
-format_order: ["json", "csv", "markdown", "yaml"]
-"#,
-        in_path.to_string_lossy(),
-        csv_out.to_string_lossy(),
-        md_out.to_string_lossy(),
-        yaml_out.to_string_lossy(),
-    );
-
-    let pipeline: PipelineConfig = serde_yaml::from_str(&yaml).expect("parse pipeline yaml");
-
-    let registry = default_registry();
-    let builder = MultiioBuilder::from_pipeline_config(pipeline, registry)
-        .expect("from_pipeline_config should succeed");
-
-    let engine = builder
-        .with_mode(ErrorPolicy::FastFail)
-        .build()
-        .expect("build engine");
-
-    let vals: Vec<ConfigData> = engine.read_all().expect("read_all");
-    assert_eq!(vals.len(), 1);
-    assert_eq!(vals[0], record);
-
-    engine.write_all(&vals).expect("write_all");
-
-    // CSV output
-    let csv_bytes = fs::read(&csv_out).expect("read csv output");
-    let csv_vals: Vec<ConfigData> =
-        format::deserialize(FormatKind::Csv, &csv_bytes).expect("deserialize csv");
-    assert_eq!(csv_vals, vals);
-
-    // Markdown output
-    let md_bytes = fs::read(&md_out).expect("read markdown output");
-    let md_vals: Vec<ConfigData> =
-        format::deserialize(FormatKind::Markdown, &md_bytes).expect("deserialize markdown");
-    assert_eq!(md_vals, vals);
-
-    // YAML output
-    let yaml_bytes = fs::read(&yaml_out).expect("read yaml output");
-    let yaml_vals: Vec<ConfigData> =
-        format::deserialize(FormatKind::Yaml, &yaml_bytes).expect("deserialize yaml");
-    assert_eq!(yaml_vals, vals);
 }
 
 #[test]

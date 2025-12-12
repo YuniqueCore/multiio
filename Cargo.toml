@@ -9,14 +9,13 @@ keywords = ["io", "cli", "multi-input", "multi-output", "format"]
 categories = ["command-line-interface", "encoding", "parser-implementations"]
 
 [features]
-default = ["json", "yaml", "toml", "ini", "csv", "xml", "markdown", "plaintext"]
+default = ["json", "yaml", "toml", "ini", "csv", "xml", "plaintext"]
 json = ["serde_json"]
 yaml = ["serde_yaml"]
 toml = ["dep:toml"]
 ini = ["dep:serde_ini"]
 csv = ["dep:csv"]
 xml = ["quick-xml"]
-markdown = []
 plaintext = []
 
 async = ["tokio", "async-trait", "futures"]
@@ -28,7 +27,6 @@ full = [
     "ini",
     "csv",
     "xml",
-    "markdown",
     "plaintext",
     "async",
     "miette",

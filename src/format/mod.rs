@@ -20,8 +20,6 @@ mod csv;
 mod ini;
 #[cfg(feature = "json")]
 mod json;
-#[cfg(feature = "markdown")]
-mod markdown;
 #[cfg(feature = "plaintext")]
 mod plaintext;
 #[cfg(feature = "toml")]
@@ -441,7 +439,6 @@ define_formats!(
         Ini => (Structured, ini, "ini", ["ini"]),
         Csv => (Other, csv, "csv", ["csv"]),
         Xml => (Other, xml, "xml", ["xml"]),
-        Markdown => (Other, markdown, "markdown", ["md", "markdown"]),
         /// Custom format with a unique name
         Custom(&'static str),
         Plaintext => (Other, plaintext, "plaintext", ["plaintext", "text", "txt"]),
@@ -1051,7 +1048,6 @@ mod tests {
                 FormatKind::Ini,
                 FormatKind::Csv,
                 FormatKind::Xml,
-                FormatKind::Markdown,
                 FormatKind::Plaintext,
             ],
         );

@@ -6,15 +6,15 @@ A unified I/O orchestration library for CLI and server applications in Rust.
 
 multiio provides a clean abstraction for handling multiple inputs and outputs
 with automatic format detection and cross-format read/write (for example, JSON
-inputs fanned out to CSV/Markdown/YAML outputs). It supports both synchronous
+inputs fanned out to CSV/YAML outputs). It supports both synchronous
 and asynchronous I/O patterns.
 
 ### Key Features
 
 - **Multi-input/Multi-output**: Read from and write to multiple sources
   simultaneously
-- **Format Abstraction**: Built-in support for JSON, YAML, CSV, XML, Markdown,
-  TOML, INI, and plaintext
+- **Format Abstraction**: Built-in support for JSON, YAML, CSV, XML, TOML, INI,
+  and plaintext
 - **Custom Formats**: Register your own formats via `CustomFormat` and
   `FormatRegistry`, including custom file extensions
 - **Sync and Async**: Both synchronous and asynchronous I/O support
@@ -107,7 +107,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 | `toml`      | TOML format support       | ✓       |
 | `ini`       | INI/".ini" config support | ✓       |
 | `xml`       | XML format support        |         |
-| `markdown`  | Markdown format support   |         |
 | `async`     | Async I/O with Tokio      |         |
 | `miette`    | Pretty error reporting    |         |
 | `full`      | All features              |         |
@@ -203,7 +202,7 @@ engine.write_all(&values)?;
            ▼                            ▼
 ┌─────────────────────────────────────────────────────┐
 │                   FormatRegistry                     │
-│ (JSON, YAML, CSV, XML, Markdown, Plaintext, TOML,   │
+│ (JSON, YAML, CSV, XML, Plaintext, TOML,            │
 │                       INI)                           │
 └─────────────────────────────────────────────────────┘
 ```

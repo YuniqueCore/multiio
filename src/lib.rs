@@ -6,7 +6,7 @@
 //!
 //! multiio provides:
 //! - **Multi-input/Multi-output**: Read from and write to multiple sources simultaneously
-//! - **Format abstraction**: Built-in support for JSON, YAML, CSV, XML, Markdown, and plaintext
+//! - **Format abstraction**: Built-in support for JSON, YAML, CSV, XML, and plaintext
 //! - **Extensible formats**: Implement the `Format` trait for custom formats
 //! - **Sync and Async**: Both synchronous and asynchronous I/O support
 //! - **Error handling**: Configurable error policies (FastFail or Accumulate)
@@ -44,7 +44,6 @@
 //! - `yaml` - YAML format support (enabled by default)
 //! - `csv` - CSV format support (enabled by default)
 //! - `xml` - XML format support
-//! - `markdown` - Markdown format support
 //! - `plaintext` - Plaintext format support (enabled by default)
 //! - `async` - Async I/O support with Tokio
 //! - `miette` - Pretty error reporting with miette
