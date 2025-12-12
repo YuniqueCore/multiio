@@ -121,10 +121,10 @@ impl AsyncOutputTarget for AsyncFileOutput {
     }
 
     async fn open_overwrite(&self) -> std::io::Result<Box<dyn AsyncWrite + Unpin + Send>> {
-        if let Some(parent) = self.path.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            fs::create_dir_all(parent).await?;
+        if let Some(parent) = self.path.parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent).await?;
+            }
         }
         let file = OpenOptions::new()
             .create(true)
@@ -136,10 +136,10 @@ impl AsyncOutputTarget for AsyncFileOutput {
     }
 
     async fn open_append(&self) -> std::io::Result<Box<dyn AsyncWrite + Unpin + Send>> {
-        if let Some(parent) = self.path.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            fs::create_dir_all(parent).await?;
+        if let Some(parent) = self.path.parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent).await?;
+            }
         }
         let file = OpenOptions::new()
             .create(true)

@@ -165,10 +165,10 @@ impl OutputTarget for FileOutput {
     }
 
     fn open_overwrite(&self) -> io::Result<Box<dyn Write + Send>> {
-        if let Some(parent) = self.path.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            fs::create_dir_all(parent)?;
+        if let Some(parent) = self.path.parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent)?;
+            }
         }
         let file = OpenOptions::new()
             .create(true)
@@ -179,10 +179,10 @@ impl OutputTarget for FileOutput {
     }
 
     fn open_append(&self) -> io::Result<Box<dyn Write + Send>> {
-        if let Some(parent) = self.path.parent()
-            && !parent.as_os_str().is_empty()
-        {
-            fs::create_dir_all(parent)?;
+        if let Some(parent) = self.path.parent() {
+            if !parent.as_os_str().is_empty() {
+                fs::create_dir_all(parent)?;
+            }
         }
         let file = OpenOptions::new()
             .create(true)

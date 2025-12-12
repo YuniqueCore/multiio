@@ -1,69 +1,66 @@
 name: tests
 
 on:
-    push:
-        branches: [main]
-    pull_request:
-        branches: [main]
-    workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
 
 env:
-    CARGO_TERM_COLOR: always
-    RUST_BACKTRACE: 1
-    RUSTFLAGS: -D warnings
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: -D warnings
 
 jobs:
-    rust:
-        name: rust (unit)
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
+  rust:
+    name: rust (unit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
 
-            - name: Setup Rust toolchain
-              uses: actions-rust-lang/setup-rust-toolchain@v1
-              with:
-                  toolchain: 1.92.0
-                  components: rustfmt, clippy
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          components: rustfmt, clippy
 
-            - name: Rust cache
-              uses: Swatinem/rust-cache@v2
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
 
-            - name: rustfmt
-              run: cargo fmt --all --check
+      - name: rustfmt
+        run: cargo fmt --all --check
 
-            - name: clippy (default features)
-              run: cargo clippy --all-targets -- -D warnings
+      - name: clippy (default features)
+        run: cargo clippy --all-targets -- -D warnings
 
-            - name: test (default features)
-              run: cargo test
+      - name: test (default features)
+        run: cargo test
 
-            - name: clippy (all features)
-              run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: clippy (all features)
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
-            - name: test (all features)
-              run: cargo test --all-features
+      - name: test (all features)
+        run: cargo test --all-features
 
-    e2e:
-        name: e2e (pytest)
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
+  e2e:
+    name: e2e (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
 
-            - name: Setup Rust toolchain
-              uses: actions-rust-lang/setup-rust-toolchain@v1
-              with:
-                  toolchain: 1.92.0
+      - name: Setup Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
 
-            - name: Rust cache
-              uses: Swatinem/rust-cache@v2
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
 
-            - name: Setup Python
-              uses: actions/setup-python@v5
-              with:
-                  python-version: "3.13"
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
 
-            - name: Setup uv
-              uses: astral-sh/setup-uv@v3
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
 
-            - name: Run e2e tests
-              run: cd e2e && uv run pytest -q -k "not exhaustive_feature_matrix_compiles"
+      - name: Run e2e tests
+        run: cd e2e && uv run pytest -q -k "not exhaustive_feature_matrix_compiles"

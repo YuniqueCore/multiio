@@ -28,10 +28,10 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut values: Vec<serde_json::Value> = engine.read_all()?;
 
-    if values.len() == 1
-        && let serde_json::Value::Array(inner) = &values[0]
-    {
-        values = inner.clone();
+    if values.len() == 1 {
+        if let serde_json::Value::Array(inner) = &values[0] {
+            values = inner.clone();
+        }
     }
 
     if values.len() == 1 {

@@ -20,10 +20,10 @@ fn run_one_to_one(input: String, output: String) -> Result<(), Box<dyn Error>> {
 
     let mut values: Vec<serde_json::Value> = engine.read_all()?;
 
-    if values.len() == 1
-        && let serde_json::Value::Array(inner) = &values[0]
-    {
-        values = inner.clone();
+    if values.len() == 1 {
+        if let serde_json::Value::Array(inner) = &values[0] {
+            values = inner.clone();
+        }
     }
 
     if values.len() == 1 {
@@ -48,10 +48,10 @@ fn run_many_to_one(inputs: Vec<String>, output: String) -> Result<(), Box<dyn Er
 
     let mut values: Vec<serde_json::Value> = engine.read_all()?;
 
-    if values.len() == 1
-        && let serde_json::Value::Array(inner) = &values[0]
-    {
-        values = inner.clone();
+    if values.len() == 1 {
+        if let serde_json::Value::Array(inner) = &values[0] {
+            values = inner.clone();
+        }
     }
 
     if values.len() == 1 {

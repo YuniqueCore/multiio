@@ -2,7 +2,7 @@
 name = "multiio"
 version = "0.2.0"
 edition = "2024"
-rust-version = "1.92"
+rust-version = "1.86"
 description = "A unified I/O orchestration library for CLI/server applications"
 license = "MIT OR Apache-2.0"
 readme = "README.md"

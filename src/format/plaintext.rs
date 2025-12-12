@@ -28,11 +28,10 @@ fn looks_like_structured(s: &str) -> bool {
         if line.contains(": ") || line.ends_with(':') {
             return true;
         }
-        if let Some((left, right)) = line.split_once('=')
-            && !left.trim().is_empty()
-            && !right.trim().is_empty()
-        {
-            return true;
+        if let Some((left, right)) = line.split_once('=') {
+            if !left.trim().is_empty() && !right.trim().is_empty() {
+                return true;
+            }
         }
     }
 

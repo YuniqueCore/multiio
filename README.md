@@ -102,6 +102,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 Default features are intentionally minimal to keep compile times and dependency
 trees small.
 
+MSRV: Rust 1.86 (see `rust-version` in `Cargo.toml`).
+
 | Feature     | Description                 | Default | Notes          |
 | ----------- | --------------------------- | ------- | -------------- |
 | `plaintext` | Plaintext format support    | ✓       |                |
