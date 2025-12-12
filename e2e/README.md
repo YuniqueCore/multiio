@@ -54,7 +54,8 @@ pytest -v --tb=short
 - `tests/conftest.py` provides shared helpers and fixtures:
   - `multiio_bin` / `multiio_async_bin` / `multiio_manual_bin` /
     `multiio_records_demo_bin` build the corresponding Rust binaries once per
-    test session using `cargo build` and return their paths.
+    test session using `cargo build` with `--features full` and return their
+    paths.
   - `run_pipeline` writes a temporary YAML pipeline config to `tmp_path` and
     invokes `multiio_pipeline` or `multiio_async_pipeline` with that file.
   - `run_pipeline_and_compare`:
@@ -100,3 +101,15 @@ uv run pytest -v --tb=short tests/test_records_demo.py::test_records_demo_auto_m
 
 All tests assume the Rust project root is two levels above this directory and
 that `cargo build` can succeed with the required features enabled.
+
+## Exhaustive feature matrix (optional)
+
+There is an optional (and intentionally slow) test that exhaustively checks
+`cargo check --tests` across all feature combinations. It is skipped by default.
+
+To run it:
+
+```bash
+cd e2e
+MULTIIO_EXHAUSTIVE_FEATURE_MATRIX=1 uv run pytest -q -k exhaustive_feature_matrix_compiles
+```

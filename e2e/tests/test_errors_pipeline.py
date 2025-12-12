@@ -103,4 +103,3 @@ format_order: ["json", "yaml", "plaintext"]
 
     contents = output_json.read_text(encoding="utf-8")
     assert contents.startswith("OLD"), "append policy did not preserve existing prefix"
-

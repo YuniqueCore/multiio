@@ -6,20 +6,21 @@ A unified I/O orchestration library for CLI and server applications in Rust.
 
 multiio provides a clean abstraction for handling multiple inputs and outputs
 with automatic format detection and cross-format read/write (for example, JSON
-inputs fanned out to CSV/YAML outputs). It supports both synchronous
-and asynchronous I/O patterns.
+inputs fanned out to CSV/YAML outputs). It supports both synchronous and
+asynchronous I/O patterns.
 
 ### Key Features
 
 - **Multi-input/Multi-output**: Read from and write to multiple sources
   simultaneously
 - **Format Abstraction**: Built-in support for JSON, YAML, CSV, XML, TOML, INI,
-  and plaintext
+  and plaintext (each behind an opt-in Cargo feature)
 - **Custom Formats**: Register your own formats via `CustomFormat` and
-  `FormatRegistry`, including custom file extensions
+  `FormatRegistry` (requires the `custom` feature), including custom file
+  extensions
 - **Sync and Async**: Both synchronous and asynchronous I/O support
 - **Error Handling**: Configurable error policies (FastFail or Accumulate)
-- **Pipeline Configuration**: Define I/O workflows via YAML/JSON config files
+- **Pipeline Configuration**: Define I/O workflows via a YAML pipeline config
 - **In-Memory I/O**: Testing-friendly in-memory sources and sinks
 
 ## Quick Start
@@ -28,7 +29,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-multiio = "0.2"
+multiio = { version = "0.2", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 ```
 
@@ -62,11 +63,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ### Async Example
 
-Enable the `async` feature:
+Enable the `async` feature (and the formats you use):
 
 ```toml
 [dependencies]
-multiio = { version = "0.2", features = ["async"] }
+multiio = { version = "0.2", features = ["async", "json", "yaml"] }
 ```
 
 ```rust
@@ -98,20 +99,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Features
 
-| Feature     | Description               | Default |
-| ----------- | ------------------------- | ------- |
-| `json`      | JSON format support       | ✓       |
-| `yaml`      | YAML format support       | ✓       |
-| `csv`       | CSV format support        | ✓       |
-| `plaintext` | Plaintext format support  | ✓       |
-| `toml`      | TOML format support       | ✓       |
-| `ini`       | INI/".ini" config support | ✓       |
-| `xml`       | XML format support        |         |
-| `async`     | Async I/O with Tokio      |         |
-| `miette`    | Pretty error reporting    |         |
-| `full`      | All features              |         |
+Default features are intentionally minimal to keep compile times and dependency
+trees small.
+
+| Feature     | Description                 | Default | Notes          |
+| ----------- | --------------------------- | ------- | -------------- |
+| `plaintext` | Plaintext format support    | ✓       |                |
+| `json`      | JSON format support         |         |                |
+| `yaml`      | YAML format support         |         |                |
+| `toml`      | TOML format support         |         |                |
+| `ini`       | INI/".ini" config support   |         |                |
+| `xml`       | XML format support          |         |                |
+| `csv`       | CSV format support          |         | Enables `json` |
+| `custom`    | Custom formats via registry |         | Enables `json` |
+| `async`     | Async I/O with Tokio        |         |                |
+| `miette`    | Pretty error reporting      |         |                |
+| `full`      | All features                |         |                |
+
+Note: Markdown is intentionally not a first-class format. If you need to ingest
+Markdown, use `plaintext` to read the content and then process it as needed.
 
 ## Custom formats
+
+Custom formats are available behind the `custom` feature:
+
+```toml
+[dependencies]
+multiio = { version = "0.2", features = ["custom"] }
+```
 
 multiio allows you to register your own formats using `CustomFormat` and
 `FormatRegistry`. Custom formats use `serde_json::Value` as an intermediate
@@ -148,6 +163,9 @@ In addition to building engines programmatically, you can drive multiio from a
 YAML pipeline configuration. This is useful for CLIs or tools that need
 configurable I/O workflows.
 
+Note: parsing the pipeline YAML requires the `yaml` feature (it uses
+`serde_yaml` in the examples and CLI binaries).
+
 ```yaml
 inputs:
   - id: in
@@ -182,14 +200,14 @@ engine.write_all(&values)?;
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                    MultiioBuilder                    │
-│         (parses args, creates InputSpec/OutputSpec)  │
+│                    MultiioBuilder                   │
+│         (parses args, creates InputSpec/OutputSpec) │
 └─────────────────────┬───────────────────────────────┘
                       │
                       ▼
 ┌─────────────────────────────────────────────────────┐
-│                      IoEngine                        │
-│              (orchestrates I/O operations)           │
+│                      IoEngine                       │
+│              (orchestrates I/O operations)          │
 └──────────┬────────────────────────────┬─────────────┘
            │                            │
            ▼                            ▼
@@ -201,9 +219,9 @@ engine.write_all(&values)?;
            │                            │
            ▼                            ▼
 ┌─────────────────────────────────────────────────────┐
-│                   FormatRegistry                     │
-│ (JSON, YAML, CSV, XML, Plaintext, TOML,            │
-│                       INI)                           │
+│                   FormatRegistry                    │
+│ (JSON, YAML, CSV, XML, Plaintext, TOML,             │
+│                       INI)                          │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -232,15 +250,21 @@ serve as real-world examples:
     configuration" above).
   - Used in the e2e tests under `e2e/tests/test_*.py` to verify 1->N, N->1, and
     N->N topologies across JSON/YAML/CSV/TOML/INI.
+  - Required features: `json,yaml` (enable additional formats as needed, or use
+    `full`).
 - `multiio_async_pipeline`
   - Async variant of the pipeline runner. Takes the same YAML config format but
     runs on top of `MultiioAsyncBuilder`.
+  - Required features: `json,yaml,async` (enable additional formats as needed,
+    or use `full`).
 - `multiio_manual`
   - Minimal non-pipeline CLI for quick format conversions:
     - `multiio_manual <input> <output>`
     - `multiio_manual --multi-in <output> <input1> <input2> [...]`
   - Formats are inferred from file extensions and feature flags
     (JSON/YAML/CSV/TOML/INI/plaintext).
+  - Required features: `json` (enable additional formats as needed, or use
+    `full`).
 - `multiio_records_demo`
   - Demo CLI for the streaming/records APIs (`read_json_records`,
     `read_csv_records`, `read_records`).
@@ -249,38 +273,20 @@ serve as real-world examples:
     - `multiio_records_demo csv <input.csv>`
     - `multiio_records_demo auto <input1> <input2> [...]` (mixed
       JSONL/CSV/YAML).
+  - Required features: `csv` (enables `json`; enable `yaml` to stream YAML
+    documents in `auto` mode).
 
 All binaries are optional and can be enabled/disabled via Cargo features and bin
 targets in `Cargo.toml`.
-
-### Format matrix
-
-The following table summarizes which formats and engine modes each CLI uses by
-default (assuming the corresponding Cargo features are enabled):
-
-| CLI                      | Sync | Async | JSON | YAML | CSV | TOML | INI | Plaintext |
-| ------------------------ | ---- | ----- | ---- | ---- | --- | ---- | --- | --------- |
-| `multiio_pipeline`       | ✓    |       | ✓    | ✓    | ✓   | ✓    | ✓   | ✓         |
-| `multiio_async_pipeline` |      | ✓     | ✓    | ✓    | ✓   | ✓    | ✓   | ✓         |
-| `multiio_manual`         | ✓    |       | ✓    | ✓    | ✓   | ✓    | ✓   | ✓         |
-| `multiio_records_demo`   | ✓    |       | ✓    | ✓    | ✓   |      |     |           |
-
-Notes:
-
-- Actual availability depends on enabling the corresponding Cargo features (see
-  the Features table above).
-- `multiio_records_demo` focuses on the streaming/records APIs and is intended
-  primarily for JSONL/NDJSON logs, CSV rows and YAML documents.
-- For `multiio_pipeline`, `multiio_async_pipeline`, and `multiio_manual`,
-  single- record datasets (such as config-style JSON/TOML/INI documents or a
-  single plaintext blob) are written as a single value rather than a one-element
-  array; multi-record datasets continue to be written as arrays.
 
 ## E2E tests
 
 The repository contains a Python/pytest-based end-to-end (e2e) test harness in
 the `e2e/` directory. It drives the CLI binaries, compares outputs against
 golden files, and exercises real filesystem I/O.
+
+The e2e harness builds the CLI binaries with `--features full` so that all
+format scenarios are available.
 
 Directory layout:
 

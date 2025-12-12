@@ -2,11 +2,23 @@
 name = "multiio"
 version = "0.2.0"
 edition = "2024"
+rust-version = "1.92"
 description = "A unified I/O orchestration library for CLI/server applications"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
+documentation = "https://docs.rs/multiio"
 keywords = ["io", "cli", "multi-input", "multi-output", "format"]
 categories = ["command-line-interface", "encoding", "parser-implementations"]
+exclude = [
+    "e2e/**",
+    ".github/**",
+    ".vscode/**",
+    ".pytest_cache/**",
+    "target/**",
+    "Cargo.lock",
+    ".release-plz.toml",
+    "release.toml",
+]
 
 [features]
 default = ["plaintext"]
