@@ -1,3 +1,9 @@
+<div align="center">
+  <a href="https://signature4u.vercel.app/api/multiio?font=satisfy&fontSize=120&speed=3.5&charSpacing=0&borderRadius=8&cardPadding=24&fill=gradient&fill1=4a7ba1&fill2=2a0dba&stroke=4a7ba1&stroke2=2a0dba&strokeMode=gradient&strokeEnabled=1&bg=transparent&bgMode=solid&bg2=e5e7eb&texture=mizige&texColor=3b82f6&texSize=63&texThickness=1&texOpacity=0.3&useGlow=1&linkFillStroke=1&format=svg" target="_blank">
+    <img src="https://signature4u.vercel.app/api/sign?text=multiio&font=satisfy&fontSize=120&speed=3.5&charSpacing=0&borderRadius=8&cardPadding=24&fill=gradient&fill1=4a7ba1&fill2=2a0dba&stroke=4a7ba1&stroke2=2a0dba&strokeMode=gradient&strokeEnabled=1&bg=transparent&bgMode=solid&bg2=e5e7eb&texture=mizige&texColor=3b82f6&texSize=63&texThickness=1&texOpacity=0.3&useGlow=1&linkFillStroke=1&format=svg" align="center"  alt="schemaui signature"/>
+  </a>
+</div>
+
 # multiio
 
 A unified I/O orchestration library for CLI and server applications in Rust.

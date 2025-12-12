@@ -1,5 +1,0 @@
-pre-release-hook = [
-    "bash",
-    "-c",
-    "PKG_DIR=$PWD; ROOT=$(git rev-parse --show-toplevel); cd \"$ROOT\" && \"$ROOT/scripts/build-web.sh\" && \"$ROOT/scripts/update-cli-dependency.sh\" && \"$ROOT/scripts/update-readme-version.sh\" \"$PKG_DIR\""
-]

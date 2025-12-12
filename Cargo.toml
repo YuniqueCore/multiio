@@ -1,5 +1,6 @@
 [package]
 name = "multiio"
+authors = ["unic <yuniqueunic@gmail.com>"]
 version = "0.2.0"
 edition = "2024"
 rust-version = "1.86"
@@ -17,7 +18,6 @@ exclude = [
     "target/**",
     "Cargo.lock",
     ".release-plz.toml",
-    "release.toml",
 ]
 
 [features]
@@ -125,3 +125,13 @@ required-features = ["json"]
 name = "custom_format"
 path = "examples/custom_format.rs"
 required-features = ["custom"]
+
+[package.metadata.release]
+pre-release-replacements = [
+    # Update inline-table dependency snippets like:
+    # multiio = { version = "0.2", features = ["custom"] }
+    { file = "README.md", search = "multiio\\s*=\\s*\\{\\s*version\\s*=\\s*\"[0-9]+\\.[0-9]+(\\.[0-9]+)?(-[0-9A-Za-z.-]+)?\"", replace = "multiio = { version = \"{{version}}\"" },
+    # Update plain dependency snippets like:
+    # multiio = "0.2"
+    { file = "README.md", search = "multiio\\s*=\\s*\"[0-9]+\\.[0-9]+(\\.[0-9]+)?(-[0-9A-Za-z.-]+)?\"", replace = "multiio = \"{{version}}\"", min = 0 },
+]
