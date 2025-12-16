@@ -134,6 +134,7 @@ path = "examples/custom_format.rs"
 required-features = ["custom"]
 
 [package.metadata.release]
+pre-release-hook = ["bash", "scripts/update_readme_release_metrics.sh"]
 pre-release-replacements = [
     # Update inline-table dependency snippets like:
     # multiio = { version = "0.2", features = ["custom"] }
