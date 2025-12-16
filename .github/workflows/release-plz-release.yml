@@ -16,7 +16,7 @@ jobs:
   release-plz-release:
     name: Publish Release
     runs-on: ubuntu-latest
-    if: github.repository_owner == 'YuniqueUnic'
+    if: github.repository == 'YuniqueCore/multiio'
     permissions: {}
     env:
       CARGO_TERM_COLOR: always

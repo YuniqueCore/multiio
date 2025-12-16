@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2](https://github.com/YuniqueCore/multiio/compare/v0.2.1...v0.2.2) - 2025-12-16
+
+### Added
+
+- *(cli)* add new `multiio_sarge` binary with sarge-based CLI
+- *(cli)* remove sarge from default features and reorganize tests
+- *(io)* add support for inline content and explicit file paths in CLI
+- *(cli)* add support for `sarge` feature and argument parsing
+
 ## [0.2.0](https://github.com/YuniqueCore/multiio/releases/tag/v0.2.0) - 2025-12-12
 
 ### Added
