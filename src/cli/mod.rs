@@ -27,6 +27,9 @@
 //! }
 //! ```
 
+#[cfg(feature = "sarge")]
+mod sarge;
+
 use crate::format::FormatKind;
 
 /// Common input arguments for CLI applications.

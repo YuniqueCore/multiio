@@ -466,6 +466,7 @@ dependencies = [
  "miette",
  "paste",
  "quick-xml",
+ "sarge",
  "serde",
  "serde_ini",
  "serde_json",
@@ -675,6 +676,12 @@ checksum = "93fc1dc3aaa9bfed95e02e6eadabb4baf7e3078b0bd1b4d7b6b0b68378900502"
 dependencies = [
  "winapi-util",
 ]
+
+[[package]]
+name = "sarge"
+version = "9.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "065234e2bf7d8a6781ccd8bb0cc4721ddbca95094bcd4405724189b2fb384b79"
 
 [[package]]
 name = "serde"
