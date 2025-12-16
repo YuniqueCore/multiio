@@ -103,6 +103,11 @@ name = "multiio_records_demo"
 path = "src/bin/multiio_records_demo.rs"
 required-features = ["csv"]
 
+[[bin]]
+name = "multiio_sarge"
+path = "src/bin/multiio_sarge.rs"
+required-features = ["json", "sarge"]
+
 [[example]]
 name = "basic_sync"
 path = "examples/basic_sync.rs"

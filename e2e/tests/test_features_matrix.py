@@ -27,6 +27,7 @@ BASE_FEATURES = [
     "csv",
     "xml",
     "plaintext",
+    "sarge",
     "async",
     "miette",
     "custom",

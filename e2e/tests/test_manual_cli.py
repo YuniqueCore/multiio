@@ -142,3 +142,56 @@ def test_manual_multi_in_one_out_json(tmp_path: Path, multiio_manual_bin: Path) 
 
     baseline_file = e2e / "data" / "output" / "baseline" / scenario / "output.json"
     compare_json_files(output_file, baseline_file)
+
+
+def test_manual_stdin_stdout_alias_tokens(tmp_path: Path, multiio_manual_bin: Path) -> None:
+    """stdin/stdout aliases should behave like '-'."""
+    root = project_root()
+
+    stdin_values = [
+        {"name": "alice", "age": 30},
+        {"name": "bob", "age": 25},
+    ]
+    stdin_data = json.dumps(stdin_values)
+
+    result = subprocess.run(
+        [str(multiio_manual_bin), "stdin", "stdout"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        input=stdin_data,
+    )
+
+    assert (
+        result.returncode == 0
+    ), f"multiio_manual stdin/stdout aliases failed: {result.stderr}\nStdout: {result.stdout}"
+
+    output = json.loads(result.stdout)
+    assert output == stdin_values
+
+
+def test_manual_writes_to_stderr(tmp_path: Path, multiio_manual_bin: Path) -> None:
+    """stderr output token should write engine output to stderr."""
+    root = project_root()
+
+    stdin_values = [
+        {"name": "alice", "age": 30},
+        {"name": "bob", "age": 25},
+    ]
+    stdin_data = json.dumps(stdin_values)
+
+    result = subprocess.run(
+        [str(multiio_manual_bin), "stdin", "stderr"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        input=stdin_data,
+    )
+
+    assert (
+        result.returncode == 0
+    ), f"multiio_manual ->stderr failed: {result.stderr}\nStdout: {result.stdout}"
+    assert result.stdout == ""
+
+    output = json.loads(result.stderr)
+    assert output == stdin_values
