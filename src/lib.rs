@@ -127,8 +127,8 @@ pub use engine_async::AsyncIoEngine;
 pub use format::{AsyncFormatRegistry, default_async_registry};
 #[cfg(feature = "async")]
 pub use io::{
-    AsyncFileInput, AsyncFileOutput, AsyncInputProvider, AsyncOutputTarget, AsyncStdinInput,
-    AsyncStdoutOutput,
+    AsyncFileInput, AsyncFileOutput, AsyncInMemorySource, AsyncInputProvider, AsyncOutputTarget,
+    AsyncStderrOutput, AsyncStdinInput, AsyncStdoutOutput,
 };
 
 /// Build a synchronous IoEngine from a PipelineConfig using the default

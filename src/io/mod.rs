@@ -12,6 +12,8 @@ mod output;
 mod std_io;
 
 pub use input::InputProvider;
+#[cfg(feature = "async")]
+pub use memory::AsyncInMemorySource;
 pub use memory::{InMemorySink, InMemorySource};
 pub use output::OutputTarget;
 pub use std_io::{FileInput, FileOutput, StderrOutput, StdinInput, StdoutOutput};
@@ -29,4 +31,6 @@ pub use async_input::AsyncInputProvider;
 #[cfg(feature = "async")]
 pub use async_output::AsyncOutputTarget;
 #[cfg(feature = "async")]
-pub use async_std_io::{AsyncFileInput, AsyncFileOutput, AsyncStdinInput, AsyncStdoutOutput};
+pub use async_std_io::{
+    AsyncFileInput, AsyncFileOutput, AsyncStderrOutput, AsyncStdinInput, AsyncStdoutOutput,
+};

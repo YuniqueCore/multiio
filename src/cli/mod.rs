@@ -1,47 +1,82 @@
 //! CLI integration helpers for multiio.
 //!
-//! This module provides utilities to integrate multiio with CLI argument parsers
-//! like `clap`. It helps convert CLI arguments into multiio configurations.
+//! This module keeps CLI-related types intentionally lightweight so callers can
+//! integrate with any argument parser (clap/sarge/argh/…).
 //!
-//! # Example with clap
+//! # Token conventions
+//!
+//! multiio intentionally supports a small set of conventional "special" tokens
+//! for CLI ergonomics:
+//!
+//! - Inputs:
+//!   - `-` or `stdin` => stdin
+//!   - `=<content>` => inline content (in-memory input)
+//!   - `@<path>` => force treating the value as a file path (useful for
+//!     disambiguating reserved tokens)
+//! - Outputs:
+//!   - `-` or `stdout` => stdout
+//!   - `stderr` => stderr
+//!   - `@<path>` => force treating the value as a file path (e.g. `@stderr`)
+//!
+//! # Example
 //!
 //! ```rust,ignore
-//! use clap::Parser;
+//! use multiio::{default_registry, MultiioBuilder};
 //! use multiio::cli::{InputArgs, OutputArgs};
 //!
-//! #[derive(Parser)]
-//! struct Cli {
-//!     #[clap(flatten)]
-//!     input: InputArgs,
+//! fn run(inputs: Vec<String>, outputs: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+//!     let input = InputArgs::from(inputs);
+//!     let output = OutputArgs::from(outputs);
 //!
-//!     #[clap(flatten)]
-//!     output: OutputArgs,
-//! }
+//!     let engine = MultiioBuilder::new(default_registry())
+//!         .with_input_args(&input)
+//!         .with_output_args(&output)
+//!         .build()?;
 //!
-//! fn main() {
-//!     let cli = Cli::parse();
-//!
-//!     let builder = MultiioBuilder::new(default_registry())
-//!         .with_input_args(&cli.input)
-//!         .with_output_args(&cli.output);
+//!     let values: Vec<serde_json::Value> = engine.read_all()?;
+//!     engine.write_all(&values)?;
+//!     Ok(())
 //! }
 //! ```
 
 #[cfg(feature = "sarge")]
 mod sarge;
 
-use crate::format::FormatKind;
+macro_rules! impls_for {
+    (
+        $name:ident => $type:path
+    ) => {
+        impl Deref for $name {
+            type Target = $type;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
+        impl DerefMut for $name {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.0
+            }
+        }
+
+        impl From<$type> for $name {
+            fn from(inputs: $type) -> Self {
+                Self(inputs)
+            }
+        }
+
+        impl From<$name> for $type {
+            fn from(args: $name) -> Self {
+                args.0
+            }
+        }
+    };
+}
 
 /// Common input arguments for CLI applications.
-///
-/// Can be used with `#[clap(flatten)]` to add standard input options.
 #[derive(Debug, Clone, Default)]
-pub struct InputArgs {
-    /// Input file paths. Use "-" for stdin.
-    pub inputs: Vec<String>,
-    /// Explicit input format (overrides auto-detection).
-    pub input_format: Option<String>,
-}
+pub struct InputArgs(Vec<String>);
 
 impl InputArgs {
     pub fn new() -> Self {
@@ -49,37 +84,18 @@ impl InputArgs {
     }
 
     pub fn with_input(mut self, path: impl Into<String>) -> Self {
-        self.inputs.push(path.into());
+        self.push(path.into());
         self
-    }
-
-    pub fn with_format(mut self, format: impl Into<String>) -> Self {
-        self.input_format = Some(format.into());
-        self
-    }
-
-    pub fn format_kind(&self) -> Option<FormatKind> {
-        self.input_format
-            .as_ref()
-            .and_then(|s| s.parse::<FormatKind>().ok())
     }
 
     pub fn is_stdin(&self) -> bool {
-        self.inputs.iter().any(|s| s == "-")
+        self.iter()
+            .any(|s| s == "-" || s.eq_ignore_ascii_case("stdin"))
     }
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct OutputArgs {
-    /// Output file paths. Use "-" for stdout.
-    pub outputs: Vec<String>,
-    /// Explicit output format (overrides auto-detection).
-    pub output_format: Option<String>,
-    /// What to do if output file exists.
-    pub overwrite: bool,
-    /// Append to existing file instead of overwriting.
-    pub append: bool,
-}
+pub struct OutputArgs(Vec<String>);
 
 impl OutputArgs {
     pub fn new() -> Self {
@@ -87,51 +103,28 @@ impl OutputArgs {
     }
 
     pub fn with_output(mut self, path: impl Into<String>) -> Self {
-        self.outputs.push(path.into());
+        self.push(path.into());
         self
-    }
-
-    /// Set explicit output format.
-    pub fn with_format(mut self, format: impl Into<String>) -> Self {
-        self.output_format = Some(format.into());
-        self
-    }
-
-    /// Enable overwrite mode.
-    pub fn with_overwrite(mut self) -> Self {
-        self.overwrite = true;
-        self
-    }
-
-    /// Enable append mode.
-    pub fn with_append(mut self) -> Self {
-        self.append = true;
-        self
-    }
-
-    /// Parse the format string into FormatKind.
-    pub fn format_kind(&self) -> Option<FormatKind> {
-        self.output_format
-            .as_ref()
-            .and_then(|s| s.parse::<FormatKind>().ok())
     }
 
     /// Check if writing to stdout.
     pub fn is_stdout(&self) -> bool {
-        self.outputs.iter().any(|s| s == "-")
+        self.iter()
+            .any(|s| s == "-" || s.eq_ignore_ascii_case("stdout"))
     }
 
-    /// Get the file exists policy based on flags.
-    pub fn file_exists_policy(&self) -> crate::config::FileExistsPolicy {
-        if self.append {
-            crate::config::FileExistsPolicy::Append
-        } else if self.overwrite {
-            crate::config::FileExistsPolicy::Overwrite
-        } else {
-            crate::config::FileExistsPolicy::Error
-        }
+    /// Check if writing to stderr.
+    pub fn is_stderr(&self) -> bool {
+        self.iter().any(|s| s.eq_ignore_ascii_case("stderr"))
     }
 }
+
+impls_for!(InputArgs => Vec<String>);
+impls_for!(OutputArgs => Vec<String>);
+
+use std::ops::{Deref, DerefMut};
+
+use crate::format::FormatKind;
 
 /// Parse a format string into a FormatKind.
 ///

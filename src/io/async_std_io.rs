@@ -97,6 +97,40 @@ impl AsyncOutputTarget for AsyncStdoutOutput {
 }
 
 #[derive(Debug, Clone)]
+pub struct AsyncStderrOutput {
+    id: String,
+}
+
+impl AsyncStderrOutput {
+    pub fn new() -> Self {
+        Self {
+            id: "stderr".into(),
+        }
+    }
+}
+
+impl Default for AsyncStderrOutput {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl AsyncOutputTarget for AsyncStderrOutput {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    async fn open_overwrite(&self) -> std::io::Result<Box<dyn AsyncWrite + Unpin + Send>> {
+        Ok(Box::new(BufWriter::new(tokio::io::stderr())))
+    }
+
+    async fn open_append(&self) -> std::io::Result<Box<dyn AsyncWrite + Unpin + Send>> {
+        Ok(Box::new(BufWriter::new(tokio::io::stderr())))
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct AsyncFileOutput {
     id: String,
     path: PathBuf,

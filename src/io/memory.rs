@@ -3,7 +3,13 @@
 use std::io::{self, Cursor, Read, Write};
 use std::sync::{Arc, Mutex};
 
+#[cfg(feature = "async")]
+use super::AsyncInputProvider;
 use super::{InputProvider, OutputTarget};
+#[cfg(feature = "async")]
+use async_trait::async_trait;
+#[cfg(feature = "async")]
+use tokio::io::{AsyncRead, BufReader};
 
 /// In-memory input source for testing.
 #[derive(Debug, Clone)]
@@ -92,6 +98,42 @@ impl OutputTarget for InMemorySink {
         Ok(Box::new(InMemoryWriteHandle {
             buf: self.buf.clone(),
         }))
+    }
+}
+
+/// Async in-memory input source (useful for tests and CLI inline content).
+#[cfg(feature = "async")]
+#[derive(Debug, Clone)]
+pub struct AsyncInMemorySource {
+    id: String,
+    data: Arc<Vec<u8>>,
+}
+
+#[cfg(feature = "async")]
+impl AsyncInMemorySource {
+    pub fn new(id: impl Into<String>, data: Vec<u8>) -> Self {
+        Self {
+            id: id.into(),
+            data: Arc::new(data),
+        }
+    }
+
+    pub fn from_string(id: impl Into<String>, data: impl Into<String>) -> Self {
+        Self::new(id, data.into().into_bytes())
+    }
+}
+
+#[cfg(feature = "async")]
+#[async_trait]
+impl AsyncInputProvider for AsyncInMemorySource {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    async fn open(&self) -> io::Result<Box<dyn AsyncRead + Unpin + Send>> {
+        Ok(Box::new(BufReader::new(Cursor::new(
+            self.data.as_ref().clone(),
+        ))))
     }
 }
 
