@@ -68,6 +68,10 @@ fn feature_matrix_compiles() {
         },
         Case {
             no_default: true,
+            features: vec!["sarge"],
+        },
+        Case {
+            no_default: true,
             features: vec!["yaml"],
         },
         Case {
@@ -95,6 +99,10 @@ fn feature_matrix_compiles() {
             features: vec!["custom"],
         }, // pulls json transitively
         // Multi-feature and umbrella sets.
+        Case {
+            no_default: true,
+            features: vec!["plaintext", "sarge"],
+        },
         Case {
             no_default: true,
             features: vec!["json", "yaml"],

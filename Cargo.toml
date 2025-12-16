@@ -21,7 +21,7 @@ exclude = [
 ]
 
 [features]
-default = ["plaintext", "sarge"]
+default = ["plaintext"]
 json = ["serde_json"]
 yaml = ["serde_yaml"]
 toml = ["dep:toml"]
