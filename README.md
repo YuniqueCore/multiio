@@ -35,7 +35,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-multiio = { version = "0.2.1", features = ["json"] }
+multiio = { version = "0.2.2", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 ```
 
@@ -73,7 +73,7 @@ Enable the `async` feature (and the formats you use):
 
 ```toml
 [dependencies]
-multiio = { version = "0.2.1", features = ["async", "json", "yaml"] }
+multiio = { version = "0.2.2", features = ["async", "json", "yaml"] }
 ```
 
 ```rust
@@ -110,19 +110,20 @@ trees small.
 
 MSRV: Rust 1.86 (see `rust-version` in `Cargo.toml`).
 
-| Feature     | Description                 | Default | Notes          |
-| ----------- | --------------------------- | ------- | -------------- |
-| `plaintext` | Plaintext format support    | ✓       |                |
-| `json`      | JSON format support         |         |                |
-| `yaml`      | YAML format support         |         |                |
-| `toml`      | TOML format support         |         |                |
-| `ini`       | INI/".ini" config support   |         |                |
-| `xml`       | XML format support          |         |                |
-| `csv`       | CSV format support          |         | Enables `json` |
-| `custom`    | Custom formats via registry |         | Enables `json` |
-| `async`     | Async I/O with Tokio        |         |                |
-| `miette`    | Pretty error reporting      |         |                |
-| `full`      | All features                |         |                |
+| Feature     | Description                 | Default | Notes            |
+| ----------- | --------------------------- | ------- | ---------------- |
+| `plaintext` | Plaintext format support    | ✓       |                  |
+| `json`      | JSON format support         |         |                  |
+| `yaml`      | YAML format support         |         |                  |
+| `toml`      | TOML format support         |         |                  |
+| `ini`       | INI/".ini" config support   |         |                  |
+| `xml`       | XML format support          |         |                  |
+| `csv`       | CSV format support          |         | Enables `json`   |
+| `custom`    | Custom formats via registry |         | Enables `json`   |
+| `async`     | Async I/O with Tokio        |         |                  |
+| `miette`    | Pretty error reporting      |         |                  |
+| `sarge`     | Sarge-based CLI helpers     |         |                  |
+| `full`      | All core features           |         | Excludes `sarge` |
 
 Note: Markdown is intentionally not a first-class format. If you need to ingest
 Markdown, use `plaintext` to read the content and then process it as needed.
@@ -133,7 +134,7 @@ Custom formats are available behind the `custom` feature:
 
 ```toml
 [dependencies]
-multiio = { version = "0.2.1", features = ["custom"] }
+multiio = { version = "0.2.2", features = ["custom"] }
 ```
 
 multiio allows you to register your own formats using `CustomFormat` and

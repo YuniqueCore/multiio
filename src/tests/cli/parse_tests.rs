@@ -9,6 +9,7 @@ fn test_parse_format() {
     assert_eq!(parse_format("JSON"), Some(FormatKind::Json));
     assert_eq!(parse_format("yaml"), Some(FormatKind::Yaml));
     assert_eq!(parse_format("yml"), Some(FormatKind::Yaml));
+    assert_eq!(parse_format("csv"), Some(FormatKind::Csv));
     assert_eq!(parse_format("unknown"), None);
 }
 
