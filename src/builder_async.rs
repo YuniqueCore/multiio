@@ -15,8 +15,8 @@ use crate::format::{
     default_registry,
 };
 use crate::io::{
-    AsyncFileInput, AsyncFileOutput, AsyncInputProvider, AsyncOutputTarget, AsyncStdinInput,
-    AsyncStdoutOutput,
+    AsyncFileInput, AsyncFileOutput, AsyncInMemorySource, AsyncInputProvider, AsyncOutputTarget,
+    AsyncStderrOutput, AsyncStdinInput, AsyncStdoutOutput,
 };
 
 pub struct MultiioAsyncBuilder {
@@ -86,9 +86,17 @@ impl MultiioAsyncBuilder {
         self
     }
 
+    pub fn with_input_args(self, args: &crate::cli::InputArgs) -> Self {
+        self.inputs_from_args(args.as_slice())
+    }
+
     pub fn outputs_from_args(mut self, args: &[String]) -> Self {
         self.output_args = args.to_vec();
         self
+    }
+
+    pub fn with_output_args(self, args: &crate::cli::OutputArgs) -> Self {
+        self.outputs_from_args(args.as_slice())
     }
 
     pub fn add_input(mut self, arg: impl Into<String>) -> Self {
@@ -178,10 +186,56 @@ impl MultiioAsyncBuilder {
     }
 
     fn resolve_single_input(&self, raw: &str) -> Result<AsyncInputSpec, SingleIoError> {
-        if raw == "-" {
+        let raw = raw.trim();
+
+        if let Some(path) = raw.strip_prefix('@') {
+            if path.is_empty() {
+                return Err(SingleIoError {
+                    stage: Stage::ResolveInput,
+                    target: raw.to_string(),
+                    error: Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "expected a path after '@'",
+                    )),
+                });
+            }
+
+            let path = PathBuf::from(path);
+            let provider: Arc<dyn AsyncInputProvider> = Arc::new(AsyncFileInput::new(path.clone()));
+            let explicit = self.infer_format_from_path(&path);
+
             return Ok(AsyncInputSpec {
-                raw: raw.to_string(),
+                raw: path.to_string_lossy().into_owned(),
+                provider,
+                explicit_format: explicit,
+                format_candidates: self.default_input_formats.clone(),
+            });
+        }
+
+        if raw == "-" || raw.eq_ignore_ascii_case("stdin") {
+            return Ok(AsyncInputSpec {
+                raw: "-".to_string(),
                 provider: Arc::new(AsyncStdinInput::new()),
+                explicit_format: None,
+                format_candidates: self.default_input_formats.clone(),
+            });
+        }
+
+        if let Some(content) = raw.strip_prefix('=') {
+            use std::hash::{Hash, Hasher};
+
+            let mut hasher = std::collections::hash_map::DefaultHasher::new();
+            content.hash(&mut hasher);
+            let id = format!("inline:{:016x}", hasher.finish());
+
+            let provider: Arc<dyn AsyncInputProvider> = Arc::new(AsyncInMemorySource::from_string(
+                id.clone(),
+                content.to_string(),
+            ));
+
+            return Ok(AsyncInputSpec {
+                raw: id,
+                provider,
                 explicit_format: None,
                 format_candidates: self.default_input_formats.clone(),
             });
@@ -189,7 +243,6 @@ impl MultiioAsyncBuilder {
 
         let path = PathBuf::from(raw);
         let provider: Arc<dyn AsyncInputProvider> = Arc::new(AsyncFileInput::new(path.clone()));
-
         let explicit = self.infer_format_from_path(&path);
 
         Ok(AsyncInputSpec {
@@ -224,10 +277,47 @@ impl MultiioAsyncBuilder {
     }
 
     fn resolve_single_output(&self, raw: &str) -> Result<AsyncOutputSpec, SingleIoError> {
-        if raw == "-" {
+        let raw = raw.trim();
+
+        if let Some(path) = raw.strip_prefix('@') {
+            if path.is_empty() {
+                return Err(SingleIoError {
+                    stage: Stage::ResolveOutput,
+                    target: raw.to_string(),
+                    error: Box::new(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "expected a path after '@'",
+                    )),
+                });
+            }
+
+            let path = PathBuf::from(path);
+            let target: Arc<dyn AsyncOutputTarget> = Arc::new(AsyncFileOutput::new(path.clone()));
+            let explicit = self.infer_format_from_path(&path);
+
             return Ok(AsyncOutputSpec {
-                raw: raw.to_string(),
+                raw: path.to_string_lossy().into_owned(),
+                target,
+                explicit_format: explicit,
+                format_candidates: self.default_output_formats.clone(),
+                file_exists_policy: self.file_exists_policy,
+            });
+        }
+
+        if raw == "-" || raw.eq_ignore_ascii_case("stdout") {
+            return Ok(AsyncOutputSpec {
+                raw: "-".to_string(),
                 target: Arc::new(AsyncStdoutOutput::new()),
+                explicit_format: None,
+                format_candidates: self.default_output_formats.clone(),
+                file_exists_policy: self.file_exists_policy,
+            });
+        }
+
+        if raw.eq_ignore_ascii_case("stderr") {
+            return Ok(AsyncOutputSpec {
+                raw: "stderr".to_string(),
+                target: Arc::new(AsyncStderrOutput::new()),
                 explicit_format: None,
                 format_candidates: self.default_output_formats.clone(),
                 file_exists_policy: self.file_exists_policy,
@@ -353,6 +443,7 @@ impl MultiioAsyncBuilder {
     fn output_from_config(&self, cfg: &OutputConfig) -> Result<AsyncOutputSpec, SingleIoError> {
         let target: Arc<dyn AsyncOutputTarget> = match cfg.kind.as_str() {
             "stdout" | "-" => Arc::new(AsyncStdoutOutput::new()),
+            "stderr" => Arc::new(AsyncStderrOutput::new()),
             "file" => {
                 let path = cfg.path.as_ref().ok_or_else(|| SingleIoError {
                     stage: Stage::ResolveOutput,
@@ -400,12 +491,60 @@ impl MultiioAsyncBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::format::{DEFAULT_FORMAT_ORDER, default_async_registry};
+    use crate::format::{DEFAULT_FORMAT_ORDER, FormatKind, default_async_registry};
 
     #[test]
     fn async_builder_defaults_match_default_format_order() {
         let builder = MultiioAsyncBuilder::new(default_async_registry());
         assert_eq!(builder.default_input_formats, DEFAULT_FORMAT_ORDER);
         assert_eq!(builder.default_output_formats, DEFAULT_FORMAT_ORDER);
+    }
+
+    #[test]
+    fn resolve_single_input_supports_stdin_alias_and_inline_content() {
+        let builder = MultiioAsyncBuilder::default();
+
+        let stdin = builder.resolve_single_input("stdin").expect("stdin spec");
+        assert_eq!(stdin.raw, "-");
+        assert_eq!(stdin.provider.id(), "-");
+        assert!(stdin.explicit_format.is_none());
+
+        let inline = builder.resolve_single_input("=hello").expect("inline spec");
+        assert!(inline.raw.starts_with("inline:"));
+        assert_eq!(inline.provider.id(), inline.raw);
+        assert!(inline.explicit_format.is_none());
+
+        let forced_path = builder
+            .resolve_single_input("@file.txt")
+            .expect("forced path spec");
+        assert_eq!(forced_path.raw, "file.txt");
+        assert_eq!(forced_path.provider.id(), "file.txt");
+        assert_eq!(forced_path.explicit_format, Some(FormatKind::Plaintext));
+    }
+
+    #[test]
+    fn resolve_single_output_supports_stdout_alias_stderr_and_forced_path() {
+        let builder = MultiioAsyncBuilder::default();
+
+        let stdout = builder
+            .resolve_single_output("stdout")
+            .expect("stdout spec");
+        assert_eq!(stdout.raw, "-");
+        assert_eq!(stdout.target.id(), "-");
+        assert!(stdout.explicit_format.is_none());
+
+        let stderr = builder
+            .resolve_single_output("stderr")
+            .expect("stderr spec");
+        assert_eq!(stderr.raw, "stderr");
+        assert_eq!(stderr.target.id(), "stderr");
+        assert!(stderr.explicit_format.is_none());
+
+        let forced_path = builder
+            .resolve_single_output("@out.txt")
+            .expect("forced path spec");
+        assert_eq!(forced_path.raw, "out.txt");
+        assert_eq!(forced_path.target.id(), "out.txt");
+        assert_eq!(forced_path.explicit_format, Some(FormatKind::Plaintext));
     }
 }
