@@ -21,7 +21,7 @@ exclude = [
 ]
 
 [features]
-default = ["plaintext"]
+default = ["plaintext", "sarge"]
 json = ["serde_json"]
 yaml = ["serde_yaml"]
 toml = ["dep:toml"]
@@ -33,6 +33,7 @@ custom = ["json"]
 
 async = ["tokio", "async-trait", "futures"]
 miette = ["dep:miette"]
+sarge = ["dep:sarge"]
 full = [
     "json",
     "yaml",
@@ -71,6 +72,7 @@ futures = { version = "0.3", optional = true }
 
 # Error reporting (optional)
 miette = { version = "7", optional = true }
+sarge = { version = "9", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
