@@ -102,6 +102,25 @@ def multiio_records_demo_bin() -> Path:
     return bin_path
 
 
+@pytest.fixture(scope="session")
+def multiio_sarge_bin() -> Path:
+    """Ensure the multiio_sarge binary is built once per test session (sarge CLI demo)."""
+    root = project_root()
+    result = subprocess.run(
+        ["cargo", "build", "--quiet", "--bin", "multiio_sarge", "--features", "full,sarge"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, f"cargo build sarge failed: {result.stderr}"
+
+    bin_path = root / "target" / "debug" / "multiio_sarge"
+    assert bin_path.exists(), f"built sarge binary not found at {bin_path}"
+
+    return bin_path
+
+
 def run_pipeline(
     multiio_bin: Path,
     pipeline_yaml_content: str,

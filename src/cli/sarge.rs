@@ -4,6 +4,91 @@ use sarge::ArgumentType;
 
 use crate::cli::{InputArgs, OutputArgs};
 
+fn split_repeatable_values(val: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut buf = String::new();
+
+    let mut in_quote: Option<char> = None;
+    let mut depth_brace: usize = 0;
+    let mut depth_bracket: usize = 0;
+    let mut depth_paren: usize = 0;
+
+    let mut it = val.chars().peekable();
+    while let Some(ch) = it.next() {
+        if let Some(q) = in_quote {
+            match ch {
+                '\\' => {
+                    buf.push(ch);
+                    if let Some(next) = it.next() {
+                        buf.push(next);
+                    }
+                }
+                _ => {
+                    buf.push(ch);
+                    if ch == q {
+                        in_quote = None;
+                    }
+                }
+            }
+            continue;
+        }
+
+        match ch {
+            '"' | '\'' => {
+                in_quote = Some(ch);
+                buf.push(ch);
+            }
+            '\\' => {
+                if matches!(it.peek(), Some(',')) {
+                    it.next();
+                    buf.push(',');
+                } else {
+                    buf.push('\\');
+                }
+            }
+            '{' => {
+                depth_brace = depth_brace.saturating_add(1);
+                buf.push(ch);
+            }
+            '}' => {
+                depth_brace = depth_brace.saturating_sub(1);
+                buf.push(ch);
+            }
+            '[' => {
+                depth_bracket = depth_bracket.saturating_add(1);
+                buf.push(ch);
+            }
+            ']' => {
+                depth_bracket = depth_bracket.saturating_sub(1);
+                buf.push(ch);
+            }
+            '(' => {
+                depth_paren = depth_paren.saturating_add(1);
+                buf.push(ch);
+            }
+            ')' => {
+                depth_paren = depth_paren.saturating_sub(1);
+                buf.push(ch);
+            }
+            ',' if depth_brace == 0 && depth_bracket == 0 && depth_paren == 0 => {
+                let token = buf.trim();
+                if !token.is_empty() {
+                    tokens.push(token.to_string());
+                }
+                buf.clear();
+            }
+            _ => buf.push(ch),
+        }
+    }
+
+    let token = buf.trim();
+    if !token.is_empty() {
+        tokens.push(token.to_string());
+    }
+
+    tokens
+}
+
 impl ArgumentType for InputArgs {
     type Error = Infallible;
 
@@ -32,8 +117,8 @@ impl ArgumentType for InputArgs {
         match val {
             None => inputs.push("-".to_string()),
             Some(v) => {
-                for token in v.split(',').map(str::trim).filter(|s| !s.is_empty()) {
-                    inputs.push(normalize(token));
+                for token in split_repeatable_values(v) {
+                    inputs.push(normalize(token.trim()));
                 }
             }
         }
@@ -73,8 +158,8 @@ impl ArgumentType for OutputArgs {
         match val {
             None => outputs.push("-".to_string()),
             Some(v) => {
-                for token in v.split(',').map(str::trim).filter(|s| !s.is_empty()) {
-                    outputs.push(normalize(token));
+                for token in split_repeatable_values(v) {
+                    outputs.push(normalize(token.trim()));
                 }
             }
         }
